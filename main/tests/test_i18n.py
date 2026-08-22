@@ -137,7 +137,7 @@ class TestI18nManager:
     def test_supported_languages(self, qapp):
         """支持的语言列表"""
         from core.i18n import I18nManager
-        assert "ja" in I18nManager.LANGUAGES
+        assert "ja" not in I18nManager.LANGUAGES
         assert "en" in I18nManager.LANGUAGES
         assert "ko" in I18nManager.LANGUAGES
         assert "zh" in I18nManager.LANGUAGES

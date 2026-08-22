@@ -106,6 +106,7 @@ class Toolbar(QWidget):
     redo_clicked = Signal()  # 重做
     long_screenshot_clicked = Signal()  # 长截图按钮
     screenshot_translate_clicked = Signal()  # 截图翻译按钮
+    ocr_copy_clicked = Signal()  # OCR 复制按钮（识别文字到剪贴板）
     gif_record_clicked = Signal()  # GIF录制按钮
     color_changed = Signal(QColor)  # 颜色改变
     stroke_width_changed = Signal(int)  # 线宽改变
@@ -214,7 +215,16 @@ class Toolbar(QWidget):
         self.gif_btn.setIconSize(QSize(icon_wide, icon_wide))
         self.gif_btn.clicked.connect(self.gif_record_clicked.emit)
         left_x += wide_w
-        
+
+        # 1.6 OCR 复制按钮（GIF 按钮右侧）— 识别选区文字并复制到剪贴板
+        self.ocr_copy_btn = QPushButton(self)
+        self.ocr_copy_btn.setGeometry(left_x, 0, wide_w, btn_height)
+        self.ocr_copy_btn.setToolTip(self.tr('OCR copy (recognize text to clipboard)'))
+        self.ocr_copy_btn.setIcon(cached_icon("svg/ocr.svg"))
+        self.ocr_copy_btn.setIconSize(QSize(icon_wide, icon_wide))
+        self.ocr_copy_btn.clicked.connect(self.ocr_copy_clicked.emit)
+        left_x += wide_w
+
         # 2. 复制按钮（暂时隐藏在截图模式）
         self.copy_btn = QPushButton(self)
         self.copy_btn.setGeometry(left_x, 0, wide_w, btn_height)

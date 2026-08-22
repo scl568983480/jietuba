@@ -76,25 +76,6 @@ def test_welcome_translation_inputs_are_not_clipped(qapp, tmp_path):
     page.close()
 
 
-@pytest.mark.parametrize(
-    ("source", "expected"),
-    [
-        ("翻译引擎", "翻訳エンジン"),
-        ("AWS 区域", "AWS リージョン"),
-        ("Session Token", "セッショントークン"),
-        ("翻译目标语言", "翻訳先言語"),
-    ],
-)
-def test_welcome_translation_has_japanese_resources(source, expected):
-    translator = XmlTranslator()
-    translations = (
-        Path(__file__).parents[1] / "translations" / "app_ja.xml"
-    )
-
-    assert translator.load_from_xml(str(translations))
-    assert translator.translate("WelcomeWizard", source) == expected
-
-
 def test_welcome_translation_saves_all_provider_credentials(
     qapp, tmp_path
 ):

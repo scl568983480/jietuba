@@ -250,7 +250,7 @@ class OCRManager:
         """获取当前使用的引擎类型"""
         return self._current_engine
     
-    def initialize(self, language: str = "日本語", engine_type: Optional[str] = None) -> bool:
+    def initialize(self, language: str = "中文", engine_type: Optional[str] = None) -> bool:
         """
         初始化 OCR 引擎
         
@@ -541,7 +541,7 @@ class OCRManager:
             return self._format_error(return_format, "windows_media_ocr 不可用")
         
         if not self._windows_ocr_language:
-            if not self._initialize_windows_ocr("日本語"):
+            if not self._initialize_windows_ocr("中文"):
                 return self._format_error(return_format)
         
         try:
@@ -776,7 +776,7 @@ def get_current_engine() -> Optional[str]:
     return _ocr_manager.get_current_engine()
 
 
-def initialize_ocr(language: str = "日本語", engine_type: Optional[str] = None) -> bool:
+def initialize_ocr(language: str = "中文", engine_type: Optional[str] = None) -> bool:
     """
     初始化 OCR 引擎
     

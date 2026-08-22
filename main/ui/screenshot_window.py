@@ -548,6 +548,7 @@ class ScreenshotWindow(QWidget):
         self.toolbar.pin_clicked.connect(self._handle_pin)
         self.toolbar.long_screenshot_clicked.connect(self.start_long_screenshot_mode)
         self.toolbar.screenshot_translate_clicked.connect(self._handle_screenshot_translate)
+        self.toolbar.ocr_copy_clicked.connect(self._handle_ocr_copy)
         self.toolbar.gif_record_clicked.connect(self.start_gif_record_mode)
 
     def _connect_session_signals(self):
@@ -585,6 +586,10 @@ class ScreenshotWindow(QWidget):
     def _handle_screenshot_translate(self):
         if self.action_handler:
             self.action_handler.handle_screenshot_translate()
+
+    def _handle_ocr_copy(self):
+        if self.action_handler:
+            self.action_handler.handle_ocr_copy()
 
     def _safe_activate_and_focus(self):
         """避免已销毁窗口执行激活/聚焦导致崩溃"""

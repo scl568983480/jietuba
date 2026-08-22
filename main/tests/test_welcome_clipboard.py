@@ -95,17 +95,6 @@ def test_welcome_clipboard_animation_renders_every_stage(qapp, tmp_path):
             },
         ),
         (
-            "ja",
-            {
-                "历史记录": "履歴",
-                "文字": "テキスト",
-                "图片": "画像",
-                "文件": "ファイル",
-                "内容分组": "定型文グループ",
-                "快速启动": "クイック起動",
-            },
-        ),
-        (
             "ko",
             {
                 "历史记录": "기록",

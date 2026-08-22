@@ -237,7 +237,6 @@ class ClipboardWindow(QWidget, FramelessMixin):
 
         locale_map = {
             "zh": QLocale(QLocale.Language.Chinese, QLocale.Country.China),
-            "ja": QLocale(QLocale.Language.Japanese, QLocale.Country.Japan),
             "ko": QLocale(QLocale.Language.Korean, QLocale.Country.SouthKorea),
             "en": QLocale(QLocale.Language.English, QLocale.Country.UnitedStates),
         }

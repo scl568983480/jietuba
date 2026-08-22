@@ -834,6 +834,10 @@ Replace it?</source>
         <translation>截图翻译（OCR + 翻译）</translation>
     </message>
     <message>
+        <source>OCR copy (recognize text to clipboard)</source>
+        <translation>OCR 复制（识别文字到剪贴板）</translation>
+    </message>
+    <message>
         <source>Recognizing...</source>
         <translation>识别中...</translation>
     </message>
@@ -3020,4 +3024,27 @@ SOFTWARE.</translation></message>
     <message><source>Select All</source><translation>全选</translation></message>
 </context>
 
+    <context>
+        <name>OcrCopy</name>
+        <message>
+            <source>OCR Copy</source>
+            <translation>OCR 复制</translation>
+        </message>
+        <message>
+            <source>Text copied to clipboard</source>
+            <translation>文字已复制到剪贴板</translation>
+        </message>
+        <message>
+            <source>OCR is not available</source>
+            <translation>OCR 不可用</translation>
+        </message>
+        <message>
+            <source>No text recognized</source>
+            <translation>未识别到文字</translation>
+        </message>
+        <message>
+            <source>OCR recognition failed</source>
+            <translation>OCR 识别失败</translation>
+        </message>
+    </context>
 </TS>

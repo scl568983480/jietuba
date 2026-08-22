@@ -247,7 +247,7 @@ class WelcomePage(BasePage):
             from core.i18n import I18nManager
             self._init_lang = I18nManager.get_current_language()
         except Exception:
-            self._init_lang = "ja"
+            self._init_lang = "zh"
 
         super().__init__(
             title=brand_text(_tr("欢迎使用截图吧 👋")).replace("👋", "").strip(),
@@ -283,9 +283,9 @@ class WelcomePage(BasePage):
             if idx >= 0:
                 self._lang_combo.setCurrentIndex(idx)
         except Exception:
-            self._lang_combo.addItem("日本語", "ja")
-            self._lang_combo.addItem("English", "en")
             self._lang_combo.addItem("简体中文", "zh")
+            self._lang_combo.addItem("English", "en")
+            self._lang_combo.addItem("한국어", "ko")
 
         self._lang_combo.currentIndexChanged.connect(self._on_lang_changed)
 

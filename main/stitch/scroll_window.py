@@ -1056,7 +1056,7 @@ class ScrollCaptureWindow(QWidget):
                 self.activateWindow()
                 
                 # 更新窗口标题以提示用户
-                self.setWindowTitle("長スクリーンショット - 位置が修正されました")
+                self.setWindowTitle("长截图 - 位置已修正")
             else:
                 print("[OK] 窗口位置验证通过")
                 
@@ -1420,7 +1420,7 @@ class ScrollCaptureWindow(QWidget):
             task_path = self.save_service.save_pil_async(
                 self.stitched_result,
                 directory=target_dir,
-                prefix="長スクショ",
+                prefix="长截图",
                 suffix=direction_suffix,
                 image_format="PNG"
             )

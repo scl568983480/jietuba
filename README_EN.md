@@ -1,4 +1,4 @@
-[中文](README.md) | **[English](README_EN.md)** | [日本語](README_JA.md)
+[中文](README.md) | **[English](README_EN.md)**
 
 # Screenshot & Clipboard Manager — jietuba
 
@@ -65,7 +65,7 @@ python main_app.py
 
 ```
 # Project root
-├── README.md / README_EN.md / README_JA.md             # Chinese, English, and Japanese documentation
+├── README.md / README_EN.md             # Chinese and English documentation
 ├── pyproject.toml                                      # Python project metadata and dependency declarations
 ├── requirements.txt                                   # Runtime dependencies
 ├── requirements-dev.txt                               # Test and build dependencies
@@ -90,7 +90,7 @@ python main_app.py
 │   ├── stitch/              # Stitch module — scroll capture, auto-stitching
 │   ├── tools/               # Tools module — pen, rect, arrow, text, etc.
 │   ├── translation/         # Translation module — DeepL API service
-│   ├── translations/        # Language resources — Chinese/English/Japanese/Korean
+│   ├── translations/        # Language resources — Chinese/English/Korean
 │   ├── ui/                  # UI module — common UI component library
 │   └── tests/               # Tests module — unit tests & integration tests
 │
@@ -360,8 +360,7 @@ translation/
 ```
 translations/
 ├── app_zh.xml / app_zh.qm  # Chinese
-├── app_en.xml / app_en.qm  # English
-└── app_ja.xml / app_ja.qm  # Japanese
+└── app_en.xml / app_en.qm  # English
 ```
 
 `.xml` = editable source files, `.qm` = compiled Qt binary files. Run `compile_translations.py` after modification.

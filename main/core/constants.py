@@ -31,7 +31,6 @@ DEFAULT_TEXT_FONT_BY_LANGUAGE = {
     "zh_CN": "Microsoft YaHei UI",
     "zh_TW": "Microsoft JhengHei UI",
     "en": "Segoe UI",
-    "ja": "Yu Gothic UI",
 }
 
 _SYSTEM_DEFAULT_TEXT_FONT_LOGGED = False

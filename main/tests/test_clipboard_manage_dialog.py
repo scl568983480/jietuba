@@ -179,7 +179,6 @@ class TestManageDialog:
         editor = TextEdit()
         expected_labels = {
             "en": ("Undo", "Redo", "Cut", "Copy", "Paste", "Delete", "Select All"),
-            "ja": ("元に戻す", "やり直す", "切り取り", "コピー", "貼り付け", "削除", "すべて選択"),
             "ko": ("실행 취소", "다시 실행", "잘라내기", "복사", "붙여넣기", "삭제", "모두 선택"),
             "zh": ("撤销", "重做", "剪切", "复制", "粘贴", "删除", "全选"),
         }

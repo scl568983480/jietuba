@@ -29,7 +29,7 @@ APP_DEFAULT_SETTINGS = {
     "preload_clipboard": True,
     "screenshot_info_hide_on_drag": False,
     "screenshot_save_enabled": True,
-    "screenshot_save_path": os.path.join(os.path.expanduser("~"), "Desktop", "スクショ"),
+    "screenshot_save_path": os.path.join(os.path.expanduser("~"), "Desktop", "截图"),
     "screenshot_format": "PNG",
     "screenshot_quality": 85,
     "show_main_window": True,
@@ -90,7 +90,7 @@ class MockConfig:
     def set_long_stitch_ignore_top_pixels(self, v): pass
     def get_screenshot_save_enabled(self): return True
     def set_screenshot_save_enabled(self, v): pass
-    def get_screenshot_save_path(self): return os.path.join(os.path.expanduser("~"), "Desktop", "スクショ")
+    def get_screenshot_save_path(self): return os.path.join(os.path.expanduser("~"), "Desktop", "截图")
     def set_screenshot_save_path(self, v): pass
     def get_screenshot_format(self): return "PNG"
     def set_screenshot_format(self, v): pass

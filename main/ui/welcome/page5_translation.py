@@ -55,7 +55,6 @@ class _TranslateIllus(IllustrationArea):
 _DEMO_MAP = {
     "zh": ("你好，世界！",  "中文",    "Hello, World!", "English"),
     "en": ("Hello, World!", "English", "你好，世界！",   "中文"),
-    "ja": ("こんにちは！",  "日本語",  "Hello, World!", "English"),
 }
 _DEMO_DEFAULT = ("Hello, World!", "English", "你好，世界！", "中文")
 
@@ -367,7 +366,7 @@ class TranslationPage(BasePage):
             app_lang = I18nManager.get_current_language()
         except ImportError:
             app_lang = "zh"
-        default_map = {"zh": "ZH", "en": "EN", "ja": "JA"}
+        default_map = {"zh": "ZH", "en": "EN", "ko": "KO"}
         saved = self._config.get_app_setting("translation_target_lang", "") or \
                 default_map.get(app_lang, "ZH")
 

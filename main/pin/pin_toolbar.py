@@ -54,6 +54,10 @@ class PinToolbar(Toolbar):
         if hasattr(self, "gif_btn"):
             self.gif_btn.hide()
 
+        # 钉图场景无需截图式 OCR 复制（钉图自带文字识别层），隐藏该按钮
+        if hasattr(self, "ocr_copy_btn"):
+            self.ocr_copy_btn.hide()
+
         if hasattr(self, "screenshot_translate_btn"):
             self.screenshot_translate_btn.setGeometry(left_x, 0, wide_w, btn_height)
             self.screenshot_translate_btn.show()

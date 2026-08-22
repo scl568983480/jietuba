@@ -1,4 +1,4 @@
-**[中文](README.md)** | [English](README_EN.md) | [日本語](README_JA.md)
+**[中文](README.md)** | [English](README_EN.md)
 
 # 截图 & 剪切板管理软件 — 截图吧
 ![jietuba_gif_20260404_000903](https://github.com/user-attachments/assets/5318b991-b0de-46a2-9c0e-d75eeae2a827)
@@ -70,7 +70,7 @@ python main_app.py
 
 ```
 # 项目根目录
-├── README.md / README_EN.md / README_JA.md             # 中文、英文、日文说明文档
+├── README.md / README_EN.md             # 中文、英文说明文档
 ├── pyproject.toml                                      # Python 项目元数据与依赖声明
 ├── requirements.txt                                   # 运行依赖
 ├── requirements-dev.txt                               # 测试与构建依赖
@@ -95,7 +95,7 @@ python main_app.py
 │   ├── stitch/              # 长截图拼接模块 — 滚动截图、自动拼接
 │   ├── tools/               # 绘图工具模块 — 笔、矩形、箭头、文字等
 │   ├── translation/         # 翻译模块 — DeepL API 翻译服务
-│   ├── translations/        # 语言资源 — 中文/英文/日文/韩文
+│   ├── translations/        # 语言资源 — 中文/英文/韩文
 │   ├── ui/                  # 用户界面模块 — 通用UI组件库
 │   └── tests/               # 测试模块 — 单元测试与集成测试
 │
@@ -444,10 +444,8 @@ translation/
 translations/
 ├── app_zh.xml               # 中文翻译源文件
 ├── app_en.xml               # 英文翻译源文件
-├── app_ja.xml               # 日文翻译源文件
 ├── app_zh.qm                # 中文编译后二进制文件
-├── app_en.qm                # 英文编译后二进制文件
-└── app_ja.qm                # 日文编译后二进制文件
+└── app_en.qm                # 英文编译后二进制文件
 ```
 
 **说明：** `.xml` 为可编辑的翻译源文件，`.qm` 为 Qt 运行时加载的编译文件。修改翻译后需运行 `compile_translations.py` 重新编译。

@@ -108,7 +108,7 @@ def create_misc_page(dialog) -> QWidget:
     for code, name in I18nManager.get_available_languages().items():
         dialog.language_combo.addItem(name, userData=code)
 
-    current_lang = dialog.config_manager.get_app_setting("language", "ja")
+    current_lang = dialog.config_manager.get_app_setting("language", "zh")
     index = dialog.language_combo.findData(current_lang)
     if index >= 0:
         dialog.language_combo.setCurrentIndex(index)

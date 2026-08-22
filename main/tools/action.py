@@ -214,7 +214,56 @@ class ActionTools:
             pixmap=pixmap_copy,
             **params
         )
-    
+
+    def handle_ocr_copy(self):
+        """
+        OCR 复制 - 选区OCR识别后复制文字到剪贴板
+
+        复用截图翻译的 OCR 引擎（ocr 模块），仅取文字结果写入系统剪贴板，
+        不再进行翻译。
+
+        流程：
+        1. 复制选区底图（独立副本）
+        2. 关闭截图窗口（释放内存）
+        3. 后台OCR识别
+        4. 识别成功后复制文字到剪贴板并提示
+        """
+        from ui.dialogs import show_modeless_warning_dialog
+        from tools.ocr_copy import OcrCopyController
+
+        log_info("启动 OCR 复制模式", "ScreenshotOcrCopy")
+
+        if not self.scene.selection_model.is_confirmed:
+            show_modeless_warning_dialog(
+                self.parent_window,
+                _tr("Warning"),
+                _tr("Please select a valid capture area first.")
+            )
+            return
+
+        # 1. 获取选区的纯净底图（不含绘制内容）
+        selection_rect = self.scene.selection_model.rect()
+        base_image = self.export_service.export_base_image_only(selection_rect)
+        if base_image is None or base_image.isNull():
+            show_modeless_warning_dialog(
+                self.parent_window,
+                _tr("Error"),
+                _tr("Failed to capture the selected area.")
+            )
+            return
+
+        # 转换为 QPixmap（OCR 线程需要使用）
+        from PySide6.QtGui import QPixmap
+        pixmap_copy = QPixmap.fromImage(base_image)
+        log_debug(f"已复制底图用于OCR复制: {pixmap_copy.width()}x{pixmap_copy.height()}", "ScreenshotOcrCopy")
+
+        # 2. 关闭截图窗口（释放内存）
+        log_debug("关闭截图窗口，释放内存", "ScreenshotOcrCopy")
+        self._cleanup_and_close()
+
+        # 3. 后台OCR识别，成功后复制到剪贴板（由控制器负责）
+        OcrCopyController.instance().copy(pixmap_copy)
+
     def _temporarily_exit_editing(self):
         """
         临时退出编辑模式，隐藏选择框和手柄

@@ -824,6 +824,10 @@ Replace it?</source>
         <translation>스크린샷 번역 (OCR + 번역)</translation>
     </message>
     <message>
+        <source>OCR copy (recognize text to clipboard)</source>
+        <translation>OCR 복사 (텍스트를 클립보드로)</translation>
+    </message>
+    <message>
         <source>Recognizing...</source>
         <translation>인식 중...</translation>
     </message>
@@ -2958,4 +2962,27 @@ SOFTWARE.</translation></message>
     <message><source>Select All</source><translation>모두 선택</translation></message>
 </context>
 
+    <context>
+        <name>OcrCopy</name>
+        <message>
+            <source>OCR Copy</source>
+            <translation>OCR 복사</translation>
+        </message>
+        <message>
+            <source>Text copied to clipboard</source>
+            <translation>텍스트가 클립보드에 복사되었습니다</translation>
+        </message>
+        <message>
+            <source>OCR is not available</source>
+            <translation>OCR을 사용할 수 없습니다</translation>
+        </message>
+        <message>
+            <source>No text recognized</source>
+            <translation>텍스트를 인식하지 못했습니다</translation>
+        </message>
+        <message>
+            <source>OCR recognition failed</source>
+            <translation>OCR 인식에 실패했습니다</translation>
+        </message>
+    </context>
 </TS>

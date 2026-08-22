@@ -235,7 +235,7 @@ class ToolSettingsManager(QObject):
 
         # ==================== 7. 其他 ====================
         "show_main_window": False,             # 运行后自动弹出窗口显示（默认后台启动）
-        "language": "en",                      # 界面语言（ja/en/zh/ko）
+        "language": "en",                      # 界面语言（en/zh/ko）
         "magnifier_color_copy_format": "rgb_hex",  # 放大镜复制颜色信息格式（rgb_hex/rgb/hex）
         "magnifier_zoom": 4.0,                 # 放大镜默认倍率（1.0 ~ 10.0）
         "magnifier_zoom_min": 2.0,             # 放大镜最小倍率
@@ -990,8 +990,8 @@ class ToolSettingsManager(QObject):
             # 映射到 DeepL 语言代码
             lang_map = {
                 "zh": "ZH",
-                "ja": "JA", 
                 "en": "EN",
+                "ko": "KO",
             }
             return lang_map.get(sys_lang, "EN")
         return saved

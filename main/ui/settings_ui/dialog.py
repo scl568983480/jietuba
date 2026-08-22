@@ -927,7 +927,7 @@ class SettingsDialog(FrostedFramelessDialog):
         # 界面语言
         if hasattr(self, 'language_combo'):
             new_lang = self.language_combo.currentData()
-            old_lang = self.config_manager.get_app_setting("language", "ja")
+            old_lang = self.config_manager.get_app_setting("language", "zh")
             self.config_manager.qsettings.setValue("app/language", new_lang)
             if new_lang != old_lang:
                 from core.i18n import I18nManager
@@ -999,7 +999,7 @@ class SettingsDialog(FrostedFramelessDialog):
         if hasattr(self, '_appearance_mask_color'):
             theme.set_mask_color(self._appearance_mask_color)
 
-        log_info("すべての設定を保存しました", "Settings")
+        log_info("已保存所有设置", "Settings")
         self._settings_snapshot = self._snapshot_settings()
         self._skip_unsaved_close_prompt = True
         try:
@@ -1381,7 +1381,7 @@ class SettingsDialog(FrostedFramelessDialog):
         if hasattr(self, 'pin_auto_toolbar_toggle'):
             self.pin_auto_toolbar_toggle.setChecked(self.config_manager.get_pin_auto_toolbar())
         if hasattr(self, 'language_combo'):
-            index = self.language_combo.findData(self.config_manager.get_app_setting("language", "ja"))
+            index = self.language_combo.findData(self.config_manager.get_app_setting("language", "zh"))
             if index >= 0:
                 self.language_combo.setCurrentIndex(index)
 

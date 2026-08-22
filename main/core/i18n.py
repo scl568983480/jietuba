@@ -112,15 +112,14 @@ class I18nManager:
     
     _instance = None
     _translator: XmlTranslator = None
-    _current_lang: str = "ja"  # 默认日文
+    _current_lang: str = "zh"  # 默认中文
     _signals: I18nSignals = None
-    
+
     # 支持的语言列表
     LANGUAGES = {
-        "ja": "日本語",
+        "zh": "简体中文",
         "en": "English",
         "ko": "한국어",
-        "zh": "简体中文",
     }
     
     def __init__(self):
@@ -265,9 +264,9 @@ class I18nManager:
         locale = QLocale.system()
         lang = locale.language()
         
-        # 映射 Qt 语言枚举到语言代码
+        # 映射 Qt 语言枚举到语言代码（日语系统回退到中文界面）
         lang_map = {
-            QLocale.Language.Japanese: "ja",
+            QLocale.Language.Japanese: "zh",
             QLocale.Language.English: "en",
             QLocale.Language.Korean: "ko",
             QLocale.Language.Chinese: "zh",

@@ -825,6 +825,10 @@ Replace it?</translation>
         <translation>Screenshot translate (OCR + Translate)</translation>
     </message>
     <message>
+        <source>OCR copy (recognize text to clipboard)</source>
+        <translation>OCR copy (recognize text to clipboard)</translation>
+    </message>
+    <message>
         <source>Recognizing...</source>
         <translation>Recognizing...</translation>
     </message>
@@ -2951,4 +2955,27 @@ SOFTWARE.</translation></message>
     <message><source>Select All</source><translation>Select All</translation></message>
 </context>
 
+    <context>
+        <name>OcrCopy</name>
+        <message>
+            <source>OCR Copy</source>
+            <translation>OCR Copy</translation>
+        </message>
+        <message>
+            <source>Text copied to clipboard</source>
+            <translation>Text copied to clipboard</translation>
+        </message>
+        <message>
+            <source>OCR is not available</source>
+            <translation>OCR is not available</translation>
+        </message>
+        <message>
+            <source>No text recognized</source>
+            <translation>No text recognized</translation>
+        </message>
+        <message>
+            <source>OCR recognition failed</source>
+            <translation>OCR recognition failed</translation>
+        </message>
+    </context>
 </TS>
