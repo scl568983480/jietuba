@@ -213,8 +213,9 @@ class ToolSettingsManager(QObject):
 
         # ==================== 5. 翻译 ====================
         "translation_provider": "google",      # 当前翻译引擎
-        "deepl_api_key": "",                    # DeepL API 密钥
-        "deepl_use_pro": False,                # 是否使用 Pro 版 API
+        "openapi_url": "",                      # OpenAI 兼容 API 地址
+        "openapi_api_key": "",                  # OpenAI 兼容 API Key
+        "openapi_model": "",                    # 模型名称（如 gpt-4o）
         "amazon_translate_region": "us-west-2",
         "amazon_translate_access_key_id": "",
         "amazon_translate_secret_access_key": "",
@@ -824,16 +825,17 @@ class ToolSettingsManager(QObject):
         """设置当前翻译引擎 ID。"""
         self.qsettings.setValue(
             "translation/active_provider",
-            (provider_id or "deepl").strip().lower(),
+            (provider_id or "google").strip().lower(),
         )
 
     def get_translation_provider_config(self, provider_id: str) -> dict:
         """返回指定 Provider 的配置；新增引擎只需在这里接入其持久化字段。"""
         provider_id = (provider_id or "").strip().lower()
-        if provider_id == "deepl":
+        if provider_id == "openapi":
             return {
-                "api_key": self.get_deepl_api_key() or "",
-                "use_pro": self.get_deepl_use_pro(),
+                "api_url": self.get_openapi_url(),
+                "api_key": self.get_openapi_api_key(),
+                "model": self.get_openapi_model(),
             }
         if provider_id == "amazon":
             return {
@@ -854,21 +856,29 @@ class ToolSettingsManager(QObject):
             }
         return {}
     
-    def get_deepl_api_key(self) -> str:
-        """获取 DeepL API 密钥"""
-        return self.qsettings.value("app/deepl_api_key", self.APP_DEFAULT_SETTINGS["deepl_api_key"], type=str)
-    
-    def set_deepl_api_key(self, value: str):
-        """设置 DeepL API 密钥"""
-        self.qsettings.setValue("app/deepl_api_key", value)
-    
-    def get_deepl_use_pro(self) -> bool:
-        """获取是否使用 DeepL Pro API"""
-        return self.qsettings.value("app/deepl_use_pro", self.APP_DEFAULT_SETTINGS["deepl_use_pro"], type=bool)
-    
-    def set_deepl_use_pro(self, value: bool):
-        """设置是否使用 DeepL Pro API"""
-        self.qsettings.setValue("app/deepl_use_pro", value)
+    def get_openapi_url(self) -> str:
+        """获取 OpenAI 兼容 API 地址"""
+        return self.qsettings.value("app/openapi_url", self.APP_DEFAULT_SETTINGS["openapi_url"], type=str)
+
+    def set_openapi_url(self, value: str):
+        """设置 OpenAI 兼容 API 地址"""
+        self.qsettings.setValue("app/openapi_url", (value or "").strip())
+
+    def get_openapi_api_key(self) -> str:
+        """获取 OpenAI 兼容 API Key"""
+        return self.qsettings.value("app/openapi_api_key", self.APP_DEFAULT_SETTINGS["openapi_api_key"], type=str)
+
+    def set_openapi_api_key(self, value: str):
+        """设置 OpenAI 兼容 API Key"""
+        self.qsettings.setValue("app/openapi_api_key", (value or "").strip())
+
+    def get_openapi_model(self) -> str:
+        """获取 OpenAI 兼容模型名称"""
+        return self.qsettings.value("app/openapi_model", self.APP_DEFAULT_SETTINGS["openapi_model"], type=str)
+
+    def set_openapi_model(self, value: str):
+        """设置 OpenAI 兼容模型名称"""
+        self.qsettings.setValue("app/openapi_model", (value or "").strip())
 
     def get_amazon_translate_region(self) -> str:
         return self.qsettings.value(
@@ -987,7 +997,7 @@ class ToolSettingsManager(QObject):
             # 跟随系统语言
             from core.i18n import I18nManager
             sys_lang = I18nManager.get_system_language()
-            # 映射到 DeepL 语言代码
+            # 映射到语言代码
             lang_map = {
                 "zh": "ZH",
                 "en": "EN",
@@ -1019,35 +1029,28 @@ class ToolSettingsManager(QObject):
     def get_translation_params(self) -> dict:
         """
         获取翻译所需的全部参数（统一入口，避免多处重复获取逻辑）
-        
+
         Returns:
             dict: 包含以下键值:
-                - api_key (str)
-                - target_lang (str): DeepL 语言代码，如 "ZH", "EN", "JA"
-                - use_pro (bool)
+                - target_lang (str): 目标语言代码，如 "zh-Hans", "en", "ja"
                 - split_sentences (str): "nonewlines" 或 "0"
                 - preserve_formatting (bool)
         """
-        api_key = self.get_deepl_api_key() or ""
-        
         # 优先读取用户手动保存的目标语言
         saved_target_lang = self.get_app_setting("translation_target_lang", "")
         if saved_target_lang:
             target_lang = saved_target_lang
         else:
             target_lang = self.get_translation_target_lang()
-        
-        use_pro = self.get_deepl_use_pro()
+
         split_sentences_enabled = self.get_translation_split_sentences()
         preserve_formatting = self.get_translation_preserve_formatting()
-        
-        # 转换为 DeepL API 参数: 开启时用 nonewlines（忽略换行），关闭时用 0（不分句）
+
+        # 开启时用 nonewlines（忽略换行），关闭时用 0（不分句）
         split_sentences = "nonewlines" if split_sentences_enabled else "0"
-        
+
         return {
-            "api_key": api_key,
             "target_lang": target_lang,
-            "use_pro": use_pro,
             "split_sentences": split_sentences,
             "preserve_formatting": preserve_formatting,
         }

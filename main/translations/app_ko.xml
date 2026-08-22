@@ -601,8 +601,8 @@ Replace it?</source>
         <translation>👨‍💻 개발자: rijyaaru</translation>
     </message>
     <message>
-    <source>🛠️ Tech: Python、Rust、PyQt6、Oneocr、DeepLAPI</source>
-    <translation>🛠️ 기술: Python、Rust、PyQt6、Oneocr、DeepLAPI</translation>
+    <source>🛠️ Tech: Python、Rust、PyQt6、Oneocr、OpenAIAPI</source>
+    <translation>🛠️ 기술: Python、Rust、PyQt6、Oneocr、OpenAIAPI</translation>
     </message>
 
     <!-- Translation Settings Page -->
@@ -611,12 +611,12 @@ Replace it?</source>
         <translation>번역 엔진</translation>
     </message>
     <message>
-        <source>DeepL API</source>
-        <translation>DeepL API</translation>
+        <source>OpenAI API</source>
+        <translation>OpenAI API</translation>
     </message>
     <message>
-        <source>DeepL API Key</source>
-        <translation>DeepL API 키</translation>
+        <source>OpenAI API Key</source>
+        <translation>OpenAI API 키</translation>
     </message>
     <message>
         <source>Show</source>
@@ -625,14 +625,6 @@ Replace it?</source>
     <message>
         <source>Hide</source>
         <translation>숨기기</translation>
-    </message>
-    <message>
-        <source>Use DeepL Pro API</source>
-        <translation>DeepL Pro API 사용</translation>
-    </message>
-    <message>
-        <source>Enable if you have a paid DeepL subscription</source>
-        <translation>DeepL 유료 구독이 있는 경우 활성화하세요</translation>
     </message>
     <message>
         <source>Amazon Translate</source>
@@ -747,8 +739,8 @@ Replace it?</source>
         <translation>선택한 영역을 캡처하지 못했습니다.</translation>
     </message>
     <message>
-        <source>Please configure DeepL API key in Settings.</source>
-        <translation>설정에서 DeepL API 키를 구성해 주세요.</translation>
+        <source>Please configure OpenAI API key in Settings.</source>
+        <translation>설정에서 OpenAI API 키를 구성해 주세요.</translation>
     </message>
 </context>
 
@@ -759,8 +751,8 @@ Replace it?</source>
         <translation>번역 오류</translation>
     </message>
     <message>
-        <source>Please configure DeepL API key in Settings.</source>
-        <translation>설정에서 DeepL API 키를 구성해 주세요.</translation>
+        <source>Please configure OpenAI API key in Settings.</source>
+        <translation>설정에서 OpenAI API 키를 구성해 주세요.</translation>
     </message>
 </context>
 
@@ -1284,12 +1276,8 @@ Replace it?</source>
         <translation>번역 설정</translation>
     </message>
     <message>
-        <source>DeepL API Key</source>
-        <translation>DeepL API 키</translation>
-    </message>
-    <message>
-        <source>Get your API key from DeepL website (free tier available)</source>
-        <translation>DeepL 웹사이트에서 API 키를 발급받으세요(무료 요금제 제공)</translation>
+        <source>OpenAI API Key</source>
+        <translation>OpenAI API 키</translation>
     </message>
     <message>
         <source>Show Key</source>
@@ -1298,14 +1286,6 @@ Replace it?</source>
     <message>
         <source>Hide Key</source>
         <translation>키 숨기기</translation>
-    </message>
-    <message>
-        <source>Use DeepL Pro API</source>
-        <translation>DeepL Pro API 사용</translation>
-    </message>
-    <message>
-        <source>Enable if you have a paid DeepL subscription</source>
-        <translation>유료 DeepL 구독이 있는 경우 켜세요</translation>
     </message>
     <message>
         <source>Target Language</source>
@@ -1338,18 +1318,6 @@ Replace it?</source>
     <message>
         <source>Keep original text formatting in translation</source>
         <translation>번역 시 원본 텍스트 서식을 유지합니다</translation>
-    </message>
-    <message>
-        <source>DeepL free tier: 500,000 chars/month. Get API key at</source>
-        <translation>DeepL 무료 요금제: 월 500,000자. API 키 발급:</translation>
-    </message>
-    <message>
-        <source>DeepL offers a free API tier with 500,000 characters/month.</source>
-        <translation>DeepL은 월 500,000자까지 무료 API 요금제를 제공합니다.</translation>
-    </message>
-    <message>
-        <source>Visit https://www.deepl.com/pro-api to get your API key.</source>
-        <translation>API 키를 받으려면 https://www.deepl.com/pro-api 를 방문하세요.</translation>
     </message>
 </context>
 <!-- ========== Clipboard Window ========== -->
@@ -2601,14 +2569,14 @@ Replace it?</source>
         <translation>선택 사항, 임시 자격 증명용</translation>
     </message>
     <message>
-        <source>使用 DeepL API 进行高质量翻译。
+        <source>使用 OpenAI API 进行高质量翻译。
 免费账户每月 50 万字符额度，够日常使用。</source>
-        <translation>DeepL API를 사용한 고품질 번역입니다.
+        <translation>OpenAI API를 사용한 고품질 번역입니다.
 무료 계정은 월 50만 자까지 제공되어 일상 사용에 충분합니다.</translation>
     </message>
     <message>
-        <source>DeepL API Key</source>
-        <translation>DeepL API 키</translation>
+        <source>OpenAI API Key</source>
+        <translation>OpenAI API 키</translation>
     </message>
     <message>
         <source>留空则使用免费公共接口</source>
@@ -2775,7 +2743,7 @@ Replace it?</source>
     <message><source>Operation</source><translation>동작</translation></message>
     <!-- About page -->
     <message><source>Features</source><translation>기능</translation></message>
-    <message><source>OCR text recognition · Long screenshot · Pin window · Clipboard manager · DeepL translation</source><translation>OCR 텍스트 인식 · 긴 스크린샷 · 고정 창 · 클립보드 관리자 · DeepL 번역</translation></message>
+    <message><source>OCR text recognition · Long screenshot · Pin window · Clipboard manager · OpenAI translation</source><translation>OCR 텍스트 인식 · 긴 스크린샷 · 고정 창 · 클립보드 관리자 · OpenAI 번역</translation></message>
     <message><source>Licenses</source><translation>라이선스</translation></message>
     <message><source>Details</source><translation>자세히</translation></message>
     <message><source>MIT License</source><translation>MIT 라이선스</translation></message>
@@ -2808,7 +2776,7 @@ SOFTWARE.</translation></message>
     <!-- Log page -->
     <message><source>Storage</source><translation>저장소</translation></message>
     <!-- Translation page -->
-    <message><source>DeepL API</source><translation>DeepL API</translation></message>
+    <message><source>OpenAI API</source><translation>OpenAI API</translation></message>
     <message><source>Translation Options</source><translation>번역 옵션</translation></message>
     <message><source>Ignore Line Breaks</source><translation>줄바꿈 무시</translation></message>
     <message><source>Merge multi-line text for better translation</source><translation>더 나은 번역을 위해 여러 줄 텍스트를 합칩니다</translation></message>

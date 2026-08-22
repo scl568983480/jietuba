@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""DeepL translation window with the FlashTrans dashboard UI."""
+"""Translation result window with the FlashTrans dashboard UI."""
 
 from __future__ import annotations
 

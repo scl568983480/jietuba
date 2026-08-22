@@ -312,7 +312,7 @@ class TranslationPopup(QWidget):
 
     def set_backend_ready(self, ready: bool) -> None:
         """Backward-compatible helper for older callers."""
-        self.set_backend_status("DeepL API", ready)
+        self.set_backend_status("Translation API", ready)
 
     def set_backend_status(self, name: str, ready: bool) -> None:
         self._backend_ready = ready

@@ -452,11 +452,14 @@ def _dev_bootstrap():
         def get_show_main_window(self): return False
         def get_autostart(self): return False
 
-        def get_deepl_api_key(self): return self._def("deepl_api_key", "")
-        def set_deepl_api_key(self, v): pass
+        def get_openapi_url(self): return self._def("openapi_url", "")
+        def set_openapi_url(self, v): pass
 
-        def get_deepl_use_pro(self): return self._def("deepl_use_pro", False)
-        def set_deepl_use_pro(self, v): pass
+        def get_openapi_api_key(self): return self._def("openapi_api_key", "")
+        def set_openapi_api_key(self, v): pass
+
+        def get_openapi_model(self): return self._def("openapi_model", "")
+        def set_openapi_model(self, v): pass
 
         def get_translation_provider(self):
             return self._def("translation_provider", "google")

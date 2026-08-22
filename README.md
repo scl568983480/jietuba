@@ -94,7 +94,7 @@ python main_app.py
 │   ├── settings/            # 设置模块 — 统一配置管理
 │   ├── stitch/              # 长截图拼接模块 — 滚动截图、自动拼接
 │   ├── tools/               # 绘图工具模块 — 笔、矩形、箭头、文字等
-│   ├── translation/         # 翻译模块 — DeepL API 翻译服务
+│   ├── translation/         # 翻译模块 — 多引擎翻译（OpenAI 兼容 API 等）
 │   ├── translations/        # 语言资源 — 中文/英文/韩文
 │   ├── ui/                  # 用户界面模块 — 通用UI组件库
 │   └── tests/               # 测试模块 — 单元测试与集成测试
@@ -414,13 +414,13 @@ tools/
 
 ### translation/ — 翻译模块
 
-基于 DeepL API 的文字翻译服务。
+基于多翻译引擎（OpenAI 兼容 API / Google / Amazon / Azure）的文字翻译服务。
 
 ```
 translation/
 ├── __init__.py
-├── deepl_service.py         # DeepLService / TranslationThread — DeepL API 异步翻译
-├── languages.py             # SupportedLanguages — DeepL 支持的语言列表与语言代码
+├── providers/              # 各翻译引擎适配器（openai / google / amazon / azure）
+├── languages.py            # 支持的语言列表与语言代码
 ├── translation_manager.py   # TranslationManager — 翻译窗口管理器（单例）
 ├── translation_dialog.py    # TranslationDialog / TranslationLoadingDialog — 翻译结果显示窗口
 └── ui/
@@ -430,7 +430,7 @@ translation/
 ```
 
 **核心功能：**
-- 调用 DeepL API 进行文字翻译
+- 调用多引擎 API（OpenAI 兼容 API / Google / Amazon / Azure）进行文字翻译
 - 异步翻译，不阻塞 UI
 - 翻译结果弹窗显示，支持复制
 

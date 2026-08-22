@@ -17,7 +17,9 @@ import os
 
 # 路径配置
 SCRIPT_DIR = Path(__file__).resolve().parent
-REPO_DIR = SCRIPT_DIR.parent
+# 本脚本位于仓库根目录，所有素材（main/、svg/、托盘.ico、models/）均在其同级，
+# 因此 REPO_DIR 即脚本所在目录，而非其父目录。
+REPO_DIR = SCRIPT_DIR
 MAIN_APP = "main/main_app.py"
 SVG_DIR = "svg"
 BUILD_DIR = "build"

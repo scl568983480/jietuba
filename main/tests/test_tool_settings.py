@@ -178,11 +178,13 @@ class TestToolSettingsManager:
     def test_translation_provider_configuration(self, manager):
         assert manager.get_translation_provider() == "google"
 
-        manager.set_deepl_api_key("test-key")
-        manager.set_deepl_use_pro(True)
-        assert manager.get_translation_provider_config("deepl") == {
+        manager.set_openapi_url("https://api.example.com/v1/chat/completions")
+        manager.set_openapi_api_key("test-key")
+        manager.set_openapi_model("gpt-4o")
+        assert manager.get_translation_provider_config("openapi") == {
+            "api_url": "https://api.example.com/v1/chat/completions",
             "api_key": "test-key",
-            "use_pro": True,
+            "model": "gpt-4o",
         }
 
         manager.set_translation_provider("future-provider")

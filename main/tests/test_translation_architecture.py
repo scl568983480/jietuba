@@ -10,8 +10,8 @@ from translation.models import (
 )
 from translation.provider import TranslationProvider
 from translation.providers.amazon import AmazonTranslateProvider
-from translation.providers.deepl import DeepLProvider
 from translation.providers.google import GoogleTranslateProvider
+from translation.providers.openai import OpenAPITranslateProvider
 from translation.registry import ProviderRegistry
 from translation.service import TranslationService
 
@@ -85,40 +85,64 @@ def test_provider_overrides_support_legacy_or_one_off_credentials():
     assert result.translated_text == "ja:hello"
 
 
-def test_deepl_adapter_owns_language_and_response_mapping(monkeypatch):
-    calls = []
+def test_openapi_provider_translates_through_chat_completions(monkeypatch):
+    captured = {}
 
-    class _DeepLService:
-        def __init__(self, api_key, use_pro=False):
-            calls.append(("init", api_key, use_pro))
+    class _Response:
+        def __enter__(self):
+            return self
 
-        def translate(self, text, **kwargs):
-            calls.append(("translate", text, kwargs))
-            return {
-                "success": True,
-                "translated_text": "你好",
-                "detected_source_lang": "EN",
-            }
+        def __exit__(self, *_args):
+            pass
+
+        def read(self):
+            return json.dumps(
+                {"choices": [{"message": {"content": "你好，世界"}}]}
+            ).encode("utf-8")
+
+    def _urlopen(request, timeout):
+        captured["request"] = request
+        captured["timeout"] = timeout
+        return _Response()
 
     monkeypatch.setattr(
-        "translation.providers.deepl.DeepLService", _DeepLService
+        "translation.providers.openai.urllib.request.urlopen", _urlopen
     )
-    provider = DeepLProvider({"api_key": "key", "use_pro": True})
-
+    provider = OpenAPITranslateProvider(
+        {
+            "api_url": "https://api.openai.com/v1/chat/completions",
+            "api_key": "sk-test",
+            "model": "gpt-4o",
+        }
+    )
     result = provider.translate(
-        TranslationRequest(
-            "hello",
-            "zh-Hans",
-            source_lang="en",
-            options={"split_sentences": "0"},
-        )
+        TranslationRequest("Hello world", "zh-Hans", timeout=9)
     )
 
-    assert result.translated_text == "你好"
-    assert result.detected_source_lang == "en"
-    assert calls[1][2]["target_lang"] == "ZH"
-    assert calls[1][2]["source_lang"] == "EN"
-    assert calls[1][2]["split_sentences"] == "0"
+    assert result.success
+    assert result.translated_text == "你好，世界"
+    assert captured["timeout"] == 9
+    body = json.loads(captured["request"].data.decode("utf-8"))
+    assert body["model"] == "gpt-4o"
+    assert body["messages"][0]["role"] == "system"
+    assert body["messages"][1]["role"] == "user"
+    assert body["messages"][1]["content"] == "Hello world"
+    headers = {
+        key.lower(): value
+        for key, value in captured["request"].header_items()
+    }
+    assert headers["authorization"] == "Bearer sk-test"
+    assert headers["content-type"].startswith("application/json")
+
+
+def test_openapi_provider_reports_unconfigured_without_url_key_model():
+    provider = OpenAPITranslateProvider(
+        {"api_url": "", "api_key": "", "model": ""}
+    )
+    assert not provider.is_configured()
+    result = provider.translate(TranslationRequest("hi", "en"))
+    assert not result.success
+    assert result.error_code is TranslationErrorCode.NOT_CONFIGURED
 
 
 def _amazon_provider(**overrides):

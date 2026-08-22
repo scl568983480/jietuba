@@ -55,28 +55,37 @@ def create_translation_page(dialog) -> QWidget:
     grp_engine.addSettingCard(engine_card)
     layout.addWidget(grp_engine)
 
-    # ════ DeepL API ════
-    grp_api = SettingCardGroup(dialog.tr("DeepL API"), page)
+    # ════ OpenAI API ════
+    grp_api = SettingCardGroup(dialog.tr("OpenAI API"), page)
 
-    # API Key（卡片）
+    # API URL
+    dialog.openapi_url_input = _add_text_setting(
+        dialog,
+        grp_api,
+        dialog.tr("API URL"),
+        dialog.config_manager.get_openapi_url(),
+        "https://api.openai.com/v1/chat/completions",
+    )
+
+    # API Key（卡片，带显示/隐藏）
     key_card = WhiteCard(grp_api)
     key_h = QHBoxLayout(key_card)
     key_h.setContentsMargins(20, 12, 20, 12)
     key_h.setSpacing(10)
 
-    key_lbl = QLabel(dialog.tr("DeepL API Key"), key_card)
+    key_lbl = QLabel(dialog.tr("API Key"), key_card)
     apply_theme_text_style(key_lbl, 14)
     key_lbl.setFixedWidth(100)
     key_h.addWidget(key_lbl)
 
-    dialog.deepl_api_key_input = LineEdit(key_card, use_default_style=False)
-    dialog.deepl_api_key_input.setPlaceholderText(
-        "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx:fx"
+    dialog.openapi_api_key_input = LineEdit(key_card, use_default_style=False)
+    dialog.openapi_api_key_input.setPlaceholderText("sk-...")
+    dialog.openapi_api_key_input.setText(
+        dialog.config_manager.get_openapi_api_key()
     )
-    dialog.deepl_api_key_input.setText(dialog.config_manager.get_deepl_api_key())
-    dialog.deepl_api_key_input.setEchoMode(LineEdit.EchoMode.Password)
-    dialog.deepl_api_key_input.setStyleSheet(dialog._get_input_style())
-    key_h.addWidget(dialog.deepl_api_key_input, 1)
+    dialog.openapi_api_key_input.setEchoMode(LineEdit.EchoMode.Password)
+    dialog.openapi_api_key_input.setStyleSheet(dialog._get_input_style())
+    key_h.addWidget(dialog.openapi_api_key_input, 1)
 
     dialog.show_api_key_btn = PushButton(dialog.tr("Show"), key_card)
     dialog.show_api_key_btn.setFixedHeight(32)
@@ -88,16 +97,14 @@ def create_translation_page(dialog) -> QWidget:
     key_card.setFixedHeight(58)
     grp_api.addSettingCard(key_card)
 
-    # Pro 开关
-    pro_card = SwitchSettingCard(
-        FluentIcon.CERTIFICATE,
-        dialog.tr("Use DeepL Pro API"),
-        dialog.tr("Enable if you have a paid DeepL subscription"),
-        parent=grp_api,
+    # Model
+    dialog.openapi_model_input = _add_text_setting(
+        dialog,
+        grp_api,
+        dialog.tr("Model"),
+        dialog.config_manager.get_openapi_model(),
+        "gpt-4o",
     )
-    pro_card.setChecked(dialog.config_manager.get_deepl_use_pro())
-    dialog.deepl_pro_toggle = pro_card
-    grp_api.addSettingCard(pro_card)
 
     layout.addWidget(grp_api)
 
@@ -175,7 +182,7 @@ def create_translation_page(dialog) -> QWidget:
     )
     layout.addWidget(grp_azure)
 
-    dialog.deepl_settings_group = grp_api
+    dialog.openapi_settings_group = grp_api
     dialog.amazon_translate_settings_group = grp_amazon
     dialog.google_translate_settings_group = grp_google
     dialog.azure_translate_settings_group = grp_azure
@@ -242,15 +249,18 @@ def create_translation_page(dialog) -> QWidget:
 
     # 提示
     info_label = QLabel(
-        "💡 " + dialog.tr("DeepL free tier: 500,000 chars/month. Get API key at")
-        + f' <a href="https://www.deepl.com/pro-api" style="color:{ACCENT};">deepl.com/pro-api</a>',
+        "💡 "
+        + dialog.tr(
+            "OpenAI-compatible endpoint. Get an API key from your provider."
+        )
+        + f' <a href="https://platform.openai.com/api-keys" style="color:{ACCENT};">platform.openai.com</a>',
         page,
     )
     info_label.setOpenExternalLinks(True)
     info_label.setWordWrap(True)
     info_label.setStyleSheet("padding: 5px; font-size: 12px; color: #999;")
     layout.addWidget(info_label)
-    dialog.deepl_translation_info_label = info_label
+    dialog.openapi_translation_info_label = info_label
     _update_provider_groups(dialog)
 
     layout.addStretch()
@@ -260,12 +270,12 @@ def create_translation_page(dialog) -> QWidget:
 
 def _toggle_api_key_visibility(dialog):
     """切换 API 密钥显示/隐藏"""
-    if dialog.deepl_api_key_input.echoMode() == QLineEdit.EchoMode.Password:
-        dialog.deepl_api_key_input.setEchoMode(QLineEdit.EchoMode.Normal)
+    if dialog.openapi_api_key_input.echoMode() == QLineEdit.EchoMode.Password:
+        dialog.openapi_api_key_input.setEchoMode(QLineEdit.EchoMode.Normal)
         dialog.show_api_key_btn.setText(dialog.tr("Hide"))
         adjust_button_width(dialog.show_api_key_btn, min_width=60)
     else:
-        dialog.deepl_api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+        dialog.openapi_api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
         dialog.show_api_key_btn.setText(dialog.tr("Show"))
         adjust_button_width(dialog.show_api_key_btn, min_width=60)
 
@@ -301,7 +311,7 @@ def _add_text_setting(
 
 def _update_provider_groups(dialog) -> None:
     provider_id = dialog.translation_provider_combo.currentData()
-    dialog.deepl_settings_group.setVisible(provider_id == "deepl")
+    dialog.openapi_settings_group.setVisible(provider_id == "openapi")
     dialog.amazon_translate_settings_group.setVisible(
         provider_id == "amazon"
     )
@@ -311,15 +321,15 @@ def _update_provider_groups(dialog) -> None:
     dialog.azure_translate_settings_group.setVisible(
         provider_id == "azure"
     )
-    if hasattr(dialog, "deepl_translation_info_label"):
-        dialog.deepl_translation_info_label.setVisible(
-            provider_id == "deepl"
+    if hasattr(dialog, "openapi_translation_info_label"):
+        dialog.openapi_translation_info_label.setVisible(
+            provider_id == "openapi"
         )
     if hasattr(dialog, "split_sentences_toggle"):
         dialog.split_sentences_toggle.setVisible(
-            provider_id == "deepl"
+            provider_id == "openapi"
         )
     if hasattr(dialog, "preserve_formatting_toggle"):
         dialog.preserve_formatting_toggle.setVisible(
-            provider_id == "deepl"
+            provider_id == "openapi"
         )

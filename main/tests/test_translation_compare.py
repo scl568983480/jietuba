@@ -1,5 +1,5 @@
 """
-翻译接口对比测试 —— 用当前配置中的 DeepL 和 Amazon Translate 分别翻译一组测试句，
+翻译接口对比测试 —— 用当前配置中的 OpenAI API 和 Amazon Translate 分别翻译一组测试句，
 输出结果供人工判断正确率。
 """
 
@@ -124,7 +124,7 @@ TEST_CASES: list[dict] = [
 def main():
     service = create_default_translation_service()
 
-    providers = ["deepl", "amazon", "google"]
+    providers = ["openapi", "amazon", "google"]
     results = {p: [] for p in providers}
 
     for case in TEST_CASES:
@@ -164,16 +164,16 @@ def main():
     print("=" * 70)
     for i, case in enumerate(TEST_CASES):
         label = case["label"]
-        deepl_result = results["deepl"][i][1]
+        openapi_result = results["openapi"][i][1]
         amazon_result = results["amazon"][i][1]
         google_result = results["google"][i][1]
 
         print(f"\n--- {label} ---")
         print(f"  🔤 原文: {case['text'][:80]}")
-        if deepl_result and deepl_result.success:
-            print(f"  🔵 DeepL: {deepl_result.translated_text[:120]}")
+        if openapi_result and openapi_result.success:
+            print(f"  🔵 OpenAI: {openapi_result.translated_text[:120]}")
         else:
-            print(f"  🔵 DeepL: ❌ {deepl_result.error_message if deepl_result else 'N/A'}")
+            print(f"  🔵 OpenAI: ❌ {openapi_result.error_message if openapi_result else 'N/A'}")
         if amazon_result and amazon_result.success:
             print(f"  🟢 Amazon: {amazon_result.translated_text[:120]}")
         else:
@@ -184,11 +184,11 @@ def main():
             print(f"  🔴 Google: ❌ {google_result.error_message if google_result else 'N/A'}")
 
     # 简单统计
-    deepl_ok = sum(1 for r in results["deepl"] if r[1] and r[1].success)
+    openapi_ok = sum(1 for r in results["openapi"] if r[1] and r[1].success)
     amazon_ok = sum(1 for r in results["amazon"] if r[1] and r[1].success)
     google_ok = sum(1 for r in results["google"] if r[1] and r[1].success)
     print(f"\n{'='*70}")
-    print(f"✅ DeepL 成功:  {deepl_ok}/{len(TEST_CASES)}")
+    print(f"✅ OpenAI 成功:  {openapi_ok}/{len(TEST_CASES)}")
     print(f"✅ Amazon 成功: {amazon_ok}/{len(TEST_CASES)}")
     print(f"✅ Google 成功: {google_ok}/{len(TEST_CASES)}")
 

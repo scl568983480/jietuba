@@ -606,8 +606,8 @@ Replace it?</source>
         <translation>👨‍💻 开发者: jyaaru</translation>
     </message>
     <message>
-    <source>🛠️ Tech: Python、Rust、PyQt6、Oneocr、DeepLAPI</source>
-    <translation>🛠️ 技术: Python、Rust、PyQt6、Oneocr、DeepLAPI</translation>
+    <source>🛠️ Tech: Python、Rust、PyQt6、Oneocr、OpenAIAPI</source>
+    <translation>🛠️ 技术: Python、Rust、PyQt6、Oneocr、OpenAIAPI</translation>
     </message>
 
     <!-- Translation Settings Page -->
@@ -616,12 +616,12 @@ Replace it?</source>
         <translation>翻译引擎</translation>
     </message>
     <message>
-        <source>DeepL API</source>
-        <translation>DeepL API</translation>
+        <source>OpenAI API</source>
+        <translation>OpenAI API</translation>
     </message>
     <message>
-        <source>DeepL API Key</source>
-        <translation>DeepL API 密钥</translation>
+        <source>OpenAI API Key</source>
+        <translation>OpenAI API 密钥</translation>
     </message>
     <message>
         <source>Show</source>
@@ -630,14 +630,6 @@ Replace it?</source>
     <message>
         <source>Hide</source>
         <translation>隐藏</translation>
-    </message>
-    <message>
-        <source>Use DeepL Pro API</source>
-        <translation>使用 DeepL Pro API</translation>
-    </message>
-    <message>
-        <source>Enable if you have a paid DeepL subscription</source>
-        <translation>付费订阅用户请启用</translation>
     </message>
     <message>
         <source>Amazon Translate</source>
@@ -752,8 +744,8 @@ Replace it?</source>
         <translation>无法获取截图区域！</translation>
     </message>
     <message>
-        <source>Please configure DeepL API key in Settings.</source>
-        <translation>请先在设置中配置 DeepL API 密钥</translation>
+        <source>Please configure OpenAI API key in Settings.</source>
+        <translation>请先在设置中配置 OpenAI API 密钥</translation>
     </message>
 </context>
 
@@ -764,8 +756,8 @@ Replace it?</source>
         <translation>翻译错误</translation>
     </message>
     <message>
-        <source>Please configure DeepL API key in Settings.</source>
-        <translation>请先在设置中配置 DeepL API 密钥</translation>
+        <source>Please configure OpenAI API key in Settings.</source>
+        <translation>请先在设置中配置 OpenAI API 密钥</translation>
     </message>
 </context>
 
@@ -1352,12 +1344,8 @@ Replace it?</source>
         <translation>翻译设置</translation>
     </message>
     <message>
-        <source>DeepL API Key</source>
-        <translation>DeepL API 密钥</translation>
-    </message>
-    <message>
-        <source>Get your API key from DeepL website (free tier available)</source>
-        <translation>从Deepl网站获取API密钥（有免费版）</translation>
+        <source>OpenAI API Key</source>
+        <translation>OpenAI API 密钥</translation>
     </message>
     <message>
         <source>Show Key</source>
@@ -1374,14 +1362,6 @@ Replace it?</source>
     <message>
         <source>Hide</source>
         <translation>隐藏</translation>
-    </message>
-    <message>
-        <source>Use DeepL Pro API</source>
-        <translation>使用 DeepL Pro API</translation>
-    </message>
-    <message>
-        <source>Enable if you have a paid DeepL subscription</source>
-        <translation>如果您有DeepL付费订阅请启用</translation>
     </message>
     <message>
         <source>Target Language</source>
@@ -1414,18 +1394,6 @@ Replace it?</source>
     <message>
         <source>Keep original text formatting in translation</source>
         <translation>在翻译中保留原文格式</translation>
-    </message>
-    <message>
-        <source>DeepL free tier: 500,000 chars/month. Get API key at</source>
-        <translation>DeepL免费版：每月50万字符。获取API密钥：</translation>
-    </message>
-    <message>
-        <source>DeepL offers a free API tier with 500,000 characters/month.</source>
-        <translation>DeepL提供免费API，每月50万字符额度。</translation>
-    </message>
-    <message>
-        <source>Visit https://www.deepl.com/pro-api to get your API key.</source>
-        <translation>访问 https://www.deepl.com/pro-api 获取您的API密钥。</translation>    
     </message>
 </context>
 
@@ -2653,14 +2621,14 @@ Replace it?</source>
         <translation>可选，供临时凭据使用</translation>
     </message>
     <message>
-        <source>使用 DeepL API 进行高质量翻译。
+        <source>使用 OpenAI API 进行高质量翻译。
 免费账户每月 50 万字符额度，够日常使用。</source>
-        <translation>使用 DeepL API 进行高质量翻译。
+        <translation>使用 OpenAI API 进行高质量翻译。
 免费账户每月 50 万字符额度，够日常使用。</translation>
     </message>
     <message>
-        <source>DeepL API Key</source>
-        <translation>DeepL API Key</translation>
+        <source>OpenAI API Key</source>
+        <translation>OpenAI API Key</translation>
     </message>
     <message>
         <source>留空则使用免费公共接口</source>
@@ -2828,7 +2796,7 @@ Replace it?</source>
     <message><source>Operation</source><translation>操作</translation></message>
     <!-- 关于页 -->
     <message><source>Features</source><translation>功能特色</translation></message>
-    <message><source>OCR text recognition · Long screenshot · Pin window · Clipboard manager · DeepL translation</source><translation>OCR文字识别 · 长截图 · 钉图窗口 · 剪贴板管理 · DeepL翻译</translation></message>
+    <message><source>OCR text recognition · Long screenshot · Pin window · Clipboard manager · OpenAI translation</source><translation>OCR文字识别 · 长截图 · 钉图窗口 · 剪贴板管理 · OpenAI翻译</translation></message>
     <message><source>Licenses</source><translation>许可证</translation></message>
     <message><source>Details</source><translation>详情</translation></message>
     <message><source>MIT License</source><translation>MIT License</translation></message>
@@ -2861,7 +2829,7 @@ SOFTWARE.</translation></message>
     <!-- 日志页 -->
     <message><source>Storage</source><translation>存储位置</translation></message>
     <!-- 翻译页 -->
-    <message><source>DeepL API</source><translation>DeepL API</translation></message>
+    <message><source>OpenAI API</source><translation>OpenAI API</translation></message>
     <message><source>Translation Options</source><translation>翻译选项</translation></message>
     <message><source>Ignore Line Breaks</source><translation>忽略换行</translation></message>
     <message><source>Merge multi-line text for better translation</source><translation>合并多行文本以获得更好的翻译</translation></message>

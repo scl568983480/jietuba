@@ -720,10 +720,12 @@ class SettingsDialog(FrostedFramelessDialog):
             )
             if index >= 0:
                 self.translation_provider_combo.setCurrentIndex(index)
-        if hasattr(self, 'deepl_api_key_input'):
-            self.deepl_api_key_input.setText(defaults["deepl_api_key"])
-        if hasattr(self, 'deepl_pro_toggle'):
-            self.deepl_pro_toggle.setChecked(defaults["deepl_use_pro"])
+        if hasattr(self, 'openapi_url_input'):
+            self.openapi_url_input.setText(defaults["openapi_url"])
+        if hasattr(self, 'openapi_api_key_input'):
+            self.openapi_api_key_input.setText(defaults["openapi_api_key"])
+        if hasattr(self, 'openapi_model_input'):
+            self.openapi_model_input.setText(defaults["openapi_model"])
         if hasattr(self, 'amazon_translate_region_input'):
             self.amazon_translate_region_input.setText(
                 defaults["amazon_translate_region"]
@@ -867,10 +869,18 @@ class SettingsDialog(FrostedFramelessDialog):
             self.config_manager.set_translation_provider(
                 self.translation_provider_combo.currentData()
             )
-        if hasattr(self, 'deepl_api_key_input'):
-            self.config_manager.set_deepl_api_key(self.deepl_api_key_input.text().strip())
-        if hasattr(self, 'deepl_pro_toggle'):
-            self.config_manager.set_deepl_use_pro(self.deepl_pro_toggle.isChecked())
+        if hasattr(self, 'openapi_url_input'):
+            self.config_manager.set_openapi_url(
+                self.openapi_url_input.text().strip()
+            )
+        if hasattr(self, 'openapi_api_key_input'):
+            self.config_manager.set_openapi_api_key(
+                self.openapi_api_key_input.text().strip()
+            )
+        if hasattr(self, 'openapi_model_input'):
+            self.config_manager.set_openapi_model(
+                self.openapi_model_input.text().strip()
+            )
         if hasattr(self, 'amazon_translate_region_input'):
             self.config_manager.set_amazon_translate_region(
                 self.amazon_translate_region_input.text().strip()
@@ -1066,7 +1076,8 @@ class SettingsDialog(FrostedFramelessDialog):
             "hotkey_input", "hotkey_input_2",
             "clipboard_hotkey_edit", "clipboard_hotkey_edit_2",
             "translation_hotkey_edit", "translation_hotkey_edit_2",
-            "deepl_api_key_input", "amazon_translate_region_input",
+            "openapi_url_input", "openapi_api_key_input", "openapi_model_input",
+            "amazon_translate_region_input",
             "amazon_translate_access_key_input",
             "amazon_translate_secret_key_input",
             "amazon_translate_session_token_input",
@@ -1125,7 +1136,8 @@ class SettingsDialog(FrostedFramelessDialog):
         for attr in ('hotkey_input', 'hotkey_input_2', 'clipboard_hotkey_edit',
                       'translation_hotkey_edit', 'translation_hotkey_edit_2',
                       'clipboard_hotkey_edit_2', 'save_path_lbl', 'path_lbl',
-                      'deepl_api_key_input', 'amazon_translate_region_input',
+                      'openapi_url_input', 'openapi_api_key_input',
+                      'openapi_model_input', 'amazon_translate_region_input',
                       'amazon_translate_access_key_input',
                       'amazon_translate_secret_key_input',
                       'amazon_translate_session_token_input',
@@ -1136,7 +1148,7 @@ class SettingsDialog(FrostedFramelessDialog):
         # 开关类
         for attr in ('smart_toggle', 'save_toggle', 'ocr_enable_toggle',
                       'ocr_grayscale_toggle', 'ocr_upscale_toggle',
-                      'deepl_pro_toggle', 'split_sentences_toggle',
+                      'split_sentences_toggle',
                       'preserve_formatting_toggle', 'log_toggle',
                       'clipboard_enabled_toggle', 'clipboard_auto_paste_toggle',
                       'autostart_toggle', 'show_main_window_toggle',
@@ -1320,10 +1332,16 @@ class SettingsDialog(FrostedFramelessDialog):
             )
             if index >= 0:
                 self.translation_provider_combo.setCurrentIndex(index)
-        if hasattr(self, 'deepl_api_key_input'):
-            self.deepl_api_key_input.setText(self.config_manager.get_deepl_api_key())
-        if hasattr(self, 'deepl_pro_toggle'):
-            self.deepl_pro_toggle.setChecked(self.config_manager.get_deepl_use_pro())
+        if hasattr(self, 'openapi_url_input'):
+            self.openapi_url_input.setText(self.config_manager.get_openapi_url())
+        if hasattr(self, 'openapi_api_key_input'):
+            self.openapi_api_key_input.setText(
+                self.config_manager.get_openapi_api_key()
+            )
+        if hasattr(self, 'openapi_model_input'):
+            self.openapi_model_input.setText(
+                self.config_manager.get_openapi_model()
+            )
         if hasattr(self, 'amazon_translate_region_input'):
             self.amazon_translate_region_input.setText(
                 self.config_manager.get_amazon_translate_region()

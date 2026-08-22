@@ -228,7 +228,7 @@ class TranslationPage(BasePage):
         self._provider_combo.setCursor(Qt.CursorShape.PointingHandCursor)
         from translation.service import create_default_translation_service
 
-        provider_order = {"google": 0, "deepl": 1, "amazon": 2}
+        provider_order = {"google": 0, "openapi": 1, "amazon": 2}
         providers = create_default_translation_service(
             self._config
         ).registry.available_providers()
@@ -259,7 +259,7 @@ class TranslationPage(BasePage):
         self._credential_stack.setStyleSheet("background: transparent;")
         self._provider_pages = {}
         self._build_google_credentials()
-        self._build_deepl_credentials()
+        self._build_openapi_credentials()
         self._build_amazon_credentials()
         card_layout.addWidget(self._credential_stack)
         self._provider_combo.currentIndexChanged.connect(
@@ -339,8 +339,14 @@ class TranslationPage(BasePage):
             label.setText(_tr(text))
         if hasattr(self, "_google_key_edit"):
             self._google_key_edit.setPlaceholderText(_tr("Google API Key"))
-        if hasattr(self, "_deepl_key_edit"):
-            self._deepl_key_edit.setPlaceholderText(_tr("DeepL API Key"))
+        if hasattr(self, "_openapi_url_edit"):
+            self._openapi_url_edit.setPlaceholderText(
+                _tr("https://api.openai.com/v1/chat/completions")
+            )
+        if hasattr(self, "_openapi_key_edit"):
+            self._openapi_key_edit.setPlaceholderText(_tr("OpenAI API Key"))
+        if hasattr(self, "_openapi_model_edit"):
+            self._openapi_model_edit.setPlaceholderText(_tr("gpt-4o"))
         if hasattr(self, "_amazon_secret_edit"):
             self._amazon_secret_edit.setPlaceholderText(
                 _tr("Secret Access Key")
@@ -393,22 +399,36 @@ class TranslationPage(BasePage):
         form.addRow("", hint)
         self._add_provider_page("google", page)
 
-    def _build_deepl_credentials(self):
+    def _build_openapi_credentials(self):
         page, form = self._credential_page()
-        self._deepl_key_edit = self._credential_edit(
-            self._config.get_deepl_api_key()
-            if hasattr(self._config, "get_deepl_api_key")
+        self._openapi_url_edit = self._credential_edit(
+            self._config.get_openapi_url()
+            if hasattr(self._config, "get_openapi_url")
             else "",
-            "DeepL API Key",
+            "https://api.openai.com/v1/chat/completions",
+        )
+        self._add_credential_row(form, "API URL", self._openapi_url_edit)
+        self._openapi_key_edit = self._credential_edit(
+            self._config.get_openapi_api_key()
+            if hasattr(self._config, "get_openapi_api_key")
+            else "",
+            "OpenAI API Key",
             password=True,
         )
-        self._add_credential_row(form, "DeepL API Key", self._deepl_key_edit)
+        self._add_credential_row(form, "API Key", self._openapi_key_edit)
+        self._openapi_model_edit = self._credential_edit(
+            self._config.get_openapi_model()
+            if hasattr(self._config, "get_openapi_model")
+            else "",
+            "gpt-4o",
+        )
+        self._add_credential_row(form, "Model", self._openapi_model_edit)
         hint = self._credential_hint(
-            f'<a href="https://www.deepl.com/pro-api" '
-            f'style="color:{ACCENT};">deepl.com/pro-api</a>'
+            f'<a href="https://platform.openai.com/api-keys" '
+            f'style="color:{ACCENT};">platform.openai.com</a>'
         )
         form.addRow("", hint)
-        self._add_provider_page("deepl", page)
+        self._add_provider_page("openapi", page)
 
     def _build_amazon_credentials(self):
         page, form = self._credential_page()
@@ -539,9 +559,15 @@ class TranslationPage(BasePage):
             self._config.set_google_translate_api_key(
                 self._google_key_edit.text().strip()
             )
-        if hasattr(self._config, "set_deepl_api_key"):
-            self._config.set_deepl_api_key(
-                self._deepl_key_edit.text().strip()
+        if hasattr(self._config, "set_openapi_url"):
+            self._config.set_openapi_url(
+                self._openapi_url_edit.text().strip()
+            )
+            self._config.set_openapi_api_key(
+                self._openapi_key_edit.text().strip()
+            )
+            self._config.set_openapi_model(
+                self._openapi_model_edit.text().strip()
             )
         if hasattr(self._config, "set_amazon_translate_region"):
             self._config.set_amazon_translate_region(

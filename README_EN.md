@@ -89,7 +89,7 @@ python main_app.py
 │   ├── settings/            # Settings module — unified configuration management
 │   ├── stitch/              # Stitch module — scroll capture, auto-stitching
 │   ├── tools/               # Tools module — pen, rect, arrow, text, etc.
-│   ├── translation/         # Translation module — DeepL API service
+│   ├── translation/         # Translation module — multi-engine translation (OpenAI-compatible API, etc.)
 │   ├── translations/        # Language resources — Chinese/English/Korean
 │   ├── ui/                  # UI module — common UI component library
 │   └── tests/               # Tests module — unit tests & integration tests
@@ -340,12 +340,12 @@ tools/
 
 ### translation/ — Translation Module
 
-DeepL API-based text translation.
+Multi-provider text translation (OpenAI-compatible API / Google / Amazon / Azure).
 
 ```
 translation/
-├── deepl_service.py         # DeepLService / TranslationThread — async DeepL API calls
-├── languages.py             # SupportedLanguages — DeepL supported language list & codes
+├── providers/              # Per-engine adapters (openai / google / amazon / azure)
+├── languages.py            # Supported language list & codes
 ├── translation_manager.py   # TranslationManager — translation window manager (singleton)
 ├── translation_dialog.py    # TranslationDialog — translation result window
 └── ui/

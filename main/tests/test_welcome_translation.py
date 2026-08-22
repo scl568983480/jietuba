@@ -36,7 +36,7 @@ def test_welcome_translation_switches_all_provider_panels(qapp, tmp_path):
     page = TranslationPage(_manager(tmp_path))
     panel_heights = {}
 
-    for provider_id in ("google", "deepl", "amazon"):
+    for provider_id in ("google", "openapi", "amazon"):
         page._provider_combo.setCurrentIndex(
             page._provider_combo.findData(provider_id)
         )
@@ -64,7 +64,9 @@ def test_welcome_translation_inputs_are_not_clipped(qapp, tmp_path):
         page._provider_combo,
         page._lang_combo,
         page._google_key_edit,
-        page._deepl_key_edit,
+        page._openapi_url_edit,
+        page._openapi_key_edit,
+        page._openapi_model_edit,
         page._amazon_region_edit,
         page._amazon_access_edit,
         page._amazon_secret_edit,
@@ -85,7 +87,9 @@ def test_welcome_translation_saves_all_provider_credentials(
         page._provider_combo.findData("amazon")
     )
     page._google_key_edit.setText("google-key")
-    page._deepl_key_edit.setText("deepl-key")
+    page._openapi_url_edit.setText("https://api.example.com/v1/chat/completions")
+    page._openapi_key_edit.setText("openai-key")
+    page._openapi_model_edit.setText("gpt-4o")
     page._amazon_region_edit.setText("ap-northeast-1")
     page._amazon_access_edit.setText("amazon-access")
     page._amazon_secret_edit.setText("amazon-secret")
@@ -96,7 +100,11 @@ def test_welcome_translation_saves_all_provider_credentials(
 
     assert manager.get_translation_provider() == "amazon"
     assert manager.get_google_translate_api_key() == "google-key"
-    assert manager.get_deepl_api_key() == "deepl-key"
+    assert manager.get_openapi_url() == (
+        "https://api.example.com/v1/chat/completions"
+    )
+    assert manager.get_openapi_api_key() == "openai-key"
+    assert manager.get_openapi_model() == "gpt-4o"
     assert manager.get_translation_provider_config("amazon") == {
         "region": "ap-northeast-1",
         "access_key_id": "amazon-access",

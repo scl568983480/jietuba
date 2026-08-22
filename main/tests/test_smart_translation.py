@@ -332,8 +332,8 @@ def test_missing_api_is_rendered_inside_all_translation_surfaces(monkeypatch, qa
     error_text = manager._api_key_error()
     manager._api_key = "stale-key"
     # 后端就绪状态必须显式打桩：真实实现会读取本机的翻译 Provider 配置，
-    # 只传 api_key="" 仅对 DeepL 这个旧调用路径生效，开发机上若启用了
-    # 其他 Provider（google/amazon）就仍是"已配置"，测试会误判。
+    # 只传 api_key="" 仅对旧的调用路径生效，开发机上若启用了
+    # 其他 Provider（google/amazon/openapi）就仍是"已配置"，测试会误判。
     monkeypatch.setattr(manager, "_backend_ready", lambda: False)
 
     manager.open_compact_input(api_key="", position=QPoint(10, 10))

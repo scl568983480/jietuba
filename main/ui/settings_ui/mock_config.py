@@ -40,8 +40,9 @@ APP_DEFAULT_SETTINGS = {
     "ocr_upscale_factor": 2.0,
     "pin_auto_toolbar": True,
     "translation_provider": "google",
-    "deepl_api_key": "",
-    "deepl_use_pro": False,
+    "openapi_url": "",
+    "openapi_api_key": "",
+    "openapi_model": "",
     "amazon_translate_region": "us-west-2",
     "amazon_translate_access_key_id": "",
     "amazon_translate_secret_access_key": "",
@@ -110,15 +111,17 @@ class MockConfig:
     def set_ocr_upscale_factor(self, v): pass
     def get_pin_auto_toolbar(self): return True
     def set_pin_auto_toolbar(self, v): pass
-    def get_deepl_api_key(self): return ""
-    def set_deepl_api_key(self, v): pass
-    def get_deepl_use_pro(self): return False
-    def set_deepl_use_pro(self, v): pass
+    def get_openapi_url(self): return ""
+    def set_openapi_url(self, v): pass
+    def get_openapi_api_key(self): return ""
+    def set_openapi_api_key(self, v): pass
+    def get_openapi_model(self): return ""
+    def set_openapi_model(self, v): pass
     def get_translation_provider(self): return "google"
     def set_translation_provider(self, v): pass
     def get_translation_provider_config(self, provider_id):
-        if provider_id == "deepl":
-            return {"api_key": "", "use_pro": False}
+        if provider_id == "openapi":
+            return {"api_url": "", "api_key": "", "model": ""}
         if provider_id == "amazon":
             return {
                 "region": "us-west-2",

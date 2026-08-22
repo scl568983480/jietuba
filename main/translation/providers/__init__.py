@@ -2,12 +2,12 @@
 
 from .amazon import AmazonTranslateProvider
 from .azure import AzureTranslateProvider
-from .deepl import DeepLProvider
 from .google import GoogleTranslateProvider
+from .openai import OpenAPITranslateProvider
 
 __all__ = [
     "AmazonTranslateProvider",
     "AzureTranslateProvider",
-    "DeepLProvider",
     "GoogleTranslateProvider",
+    "OpenAPITranslateProvider",
 ]

@@ -19,8 +19,7 @@ translation_manager.py - 翻译窗口单例管理器
     # 翻译文本（创建或复用窗口）
     manager.translate(
         text="Hello World",
-        api_key="your-deepl-key",
-        target_lang="ZH",
+        target_lang="zh-Hans",
         position=QPoint(100, 100)  # 可选，窗口位置
     )
 """
@@ -86,15 +85,9 @@ class TranslationManager(QObject):
         return api_key
 
     def _provider_overrides(self) -> dict:
-        """Build temporary DeepL overrides only for legacy callers."""
-        if self._translation_service.active_provider_id() != "deepl":
-            return {}
-        if not self._legacy_provider_override and not self._api_key:
-            return {}
-        return {
-            "api_key": self._api_key,
-            "use_pro": self._use_pro,
-        }
+        """Legacy callers no longer pass per-provider credentials; the
+        active provider reads everything from its persisted configuration."""
+        return {}
 
     def _backend_ready(self) -> bool:
         return self._translation_service.is_configured(
@@ -147,8 +140,8 @@ class TranslationManager(QObject):
         配置翻译服务
         
         Args:
-            api_key: DeepL API 密钥
-            use_pro: 是否使用 Pro 版 API
+            api_key: API 密钥（兼容旧调用，现已忽略）
+            use_pro: 是否使用 Pro 版 API（兼容旧调用，现已忽略）
             split_sentences: 分句模式 ("0"=不分句, "1"=自动分句, "nonewlines"=忽略换行)
             preserve_formatting: 保留格式
         """
@@ -178,7 +171,7 @@ class TranslationManager(QObject):
         
         Args:
             text: 要翻译的文本（可为空，此时只显示窗口不翻译）
-            api_key: DeepL API 密钥（可选，不传则使用 configure 配置的）
+            api_key: API 密钥（兼容旧调用，现已忽略）
             target_lang: 目标语言代码
             source_lang: 源语言代码（可选，不传则自动检测）
             position: 窗口位置（可选）
@@ -684,9 +677,9 @@ class TranslationManager(QObject):
         
         Args:
             pixmap: QPixmap 图片（已是独立副本）
-            api_key: DeepL API 密钥
+            api_key: API 密钥（兼容旧调用，现已忽略）
             target_lang: 目标语言代码
-            use_pro: 是否使用 Pro 版 API
+            use_pro: 是否使用 Pro 版 API（兼容旧调用，现已忽略）
             split_sentences: 分句模式
             preserve_formatting: 保留格式
         """

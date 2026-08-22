@@ -87,15 +87,15 @@ def create_default_translation_service(config=None) -> TranslationService:
     from .providers import (
         AmazonTranslateProvider,
         AzureTranslateProvider,
-        DeepLProvider,
         GoogleTranslateProvider,
+        OpenAPITranslateProvider,
     )
 
     registry = ProviderRegistry()
     registry.register(
-        DeepLProvider.provider_id,
-        DeepLProvider,
-        display_name=DeepLProvider.display_name,
+        OpenAPITranslateProvider.provider_id,
+        OpenAPITranslateProvider,
+        display_name=OpenAPITranslateProvider.display_name,
     )
     registry.register(
         AmazonTranslateProvider.provider_id,
