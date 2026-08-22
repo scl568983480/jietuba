@@ -142,10 +142,9 @@ class ScreenshotShortcutHandler(ShortcutHandler):
             if w.scene and w.scene.selection_model.is_confirmed:
                 w.action_handler.handle_ocr_copy()
             return True
-            return True
 
-        # 取色（单键 C，无修饰键 — 保留硬编码）
-        if event.key() == Qt.Key.Key_C:
+        # 取色（单键 P，无修饰键 — 保留硬编码）
+        if event.key() == Qt.Key.Key_P:
             if event.modifiers() == Qt.KeyboardModifier.NoModifier:
                 mo = getattr(w, 'magnifier_overlay', None)
                 if mo and mo.cursor_scene_pos is not None and mo._should_render():

@@ -285,7 +285,6 @@ class WelcomePage(BasePage):
         except Exception:
             self._lang_combo.addItem("简体中文", "zh")
             self._lang_combo.addItem("English", "en")
-            self._lang_combo.addItem("한국어", "ko")
 
         self._lang_combo.currentIndexChanged.connect(self._on_lang_changed)
 

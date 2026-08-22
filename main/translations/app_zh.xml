@@ -2310,8 +2310,8 @@ Replace it?</source>
 <context>
     <name>MagnifierOverlay</name>
     <message>
-        <source>Press C to copy color info</source>
-        <translation>按 C 复制颜色信息</translation>
+        <source>Press P to copy color info</source>
+        <translation>按 P 复制颜色信息</translation>
     </message>
 </context>
 
@@ -2323,7 +2323,7 @@ Replace it?</source>
     </message>
     <message>
         <source>Used when copying color info in magnifier.</source>
-        <translation>按 C 复制颜色信息时使用</translation>
+        <translation>按 P 复制颜色信息时使用</translation>
     </message>
     <message>
         <source>RGB+HEX</source>

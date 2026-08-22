@@ -119,7 +119,6 @@ class I18nManager:
     LANGUAGES = {
         "zh": "简体中文",
         "en": "English",
-        "ko": "한국어",
     }
     
     def __init__(self):
@@ -268,7 +267,7 @@ class I18nManager:
         lang_map = {
             QLocale.Language.Japanese: "zh",
             QLocale.Language.English: "en",
-            QLocale.Language.Korean: "ko",
+            QLocale.Language.Korean: "en",
             QLocale.Language.Chinese: "zh",
         }
         

@@ -296,7 +296,7 @@ class MagnifierOverlay(QWidget):
 		)
 		
 		# hint 行文本固定，单独算一次
-		hint_text = self.tr("Press C to copy color info")
+		hint_text = self.tr("Press P to copy color info")
 		self._fixed_hint_font = self._get_fitted_font(
 			painter, hint_text, text_rect_width, 13, 5
 		)
@@ -401,7 +401,7 @@ class MagnifierOverlay(QWidget):
 		rgb_text = f"RGB: {color.red()}, {color.green()}, {color.blue()}"
 		hex_text = f"HEX: {color.name().upper()}"
 		pos_text = f"POS: {int(pos.x())}, {int(pos.y())}"
-		hint_text = self.tr("Press C to copy color info")
+		hint_text = self.tr("Press P to copy color info")
 
 		# 定义每行文字的固定矩形区域 (宽度锁定)
 		text_padding_left = 6

@@ -372,7 +372,7 @@ class TranslationPage(BasePage):
             app_lang = I18nManager.get_current_language()
         except ImportError:
             app_lang = "zh"
-        default_map = {"zh": "ZH", "en": "EN", "ko": "KO"}
+        default_map = {"zh": "ZH", "en": "EN"}
         saved = self._config.get_app_setting("translation_target_lang", "") or \
                 default_map.get(app_lang, "ZH")
 

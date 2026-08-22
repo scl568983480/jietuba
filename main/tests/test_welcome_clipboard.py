@@ -94,17 +94,6 @@ def test_welcome_clipboard_animation_renders_every_stage(qapp, tmp_path):
                 "快速启动": "Quick Launch",
             },
         ),
-        (
-            "ko",
-            {
-                "历史记录": "기록",
-                "文字": "텍스트",
-                "图片": "이미지",
-                "文件": "파일",
-                "内容分组": "콘텐츠 그룹",
-                "快速启动": "빠른 실행",
-            },
-        ),
     ],
 )
 def test_welcome_clipboard_animation_has_localized_labels(language, expected):

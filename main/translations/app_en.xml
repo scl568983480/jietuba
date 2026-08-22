@@ -2223,8 +2223,8 @@ Replace it?</translation>
 <context>
     <name>MagnifierOverlay</name>
     <message>
-        <source>Press C to copy color info</source>
-        <translation>Press C to copy color info</translation>
+        <source>Press P to copy color info</source>
+        <translation>Press P to copy color info</translation>
     </message>
 </context>
 
