@@ -312,6 +312,10 @@ Replace it?</translation>
         <translation>Screenshot Translate</translation>
     </message>
     <message>
+        <source>OCR Copy</source>
+        <translation>OCR Copy</translation>
+    </message>
+    <message>
         <source>Cursor Move Keys</source>
         <translation>Cursor Move Keys</translation>
     </message>

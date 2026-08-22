@@ -9,13 +9,39 @@ ocr_copy.py - OCR 复制功能
 - 子线程只持有 QImage（值类型，线程安全），不持有任何 QWidget
 - 识别完成回调在主线程执行，因此可安全地写剪贴板、弹提示
 """
-from PySide6.QtCore import QThread, Signal, QObject
-from PySide6.QtGui import QImage, QApplication
+from PySide6.QtCore import Qt, QThread, Signal, QObject
+from PySide6.QtGui import QImage
+from PySide6.QtWidgets import QApplication
 
 from core.i18n import make_tr
 from core import log_info, log_error, log_debug
 
 _tr = make_tr("OcrCopy")
+
+# 选区短边小于该尺寸（像素）时，先按比例平滑放大再识别，
+# 解决“小选区文字像素太小导致 ppocr 漏识”的问题，保证任意大小的选区都能 OCR。
+_OCR_TARGET_MIN_SIDE = 300
+_OCR_MAX_SCALE = 4.0
+
+
+def _upscale_for_ocr(image: QImage) -> QImage:
+    """小图按比例平滑放大到合适尺寸，便于 OCR 识别小字选区。
+
+    只在短边偏小（< _OCR_TARGET_MIN_SIDE）时放大；放大倍数封顶
+    _OCR_MAX_SCALE，避免大图被无意义放大而爆内存。
+    """
+    w, h = image.width(), image.height()
+    min_side = min(w, h)
+    if min_side <= 0 or min_side >= _OCR_TARGET_MIN_SIDE:
+        return image
+    scale = min(_OCR_MAX_SCALE, _OCR_TARGET_MIN_SIDE / min_side)
+    nw = max(1, int(round(w * scale)))
+    nh = max(1, int(round(h * scale)))
+    return image.scaled(
+        nw, nh,
+        Qt.AspectRatioMode.KeepAspectRatio,
+        Qt.TransformationMode.SmoothTransformation,
+    )
 
 
 class _OcrCopyThread(QThread):
@@ -35,8 +61,12 @@ class _OcrCopyThread(QThread):
                 self.finished_signal.emit(False, _tr("OCR is not available"))
                 return
 
+            # 小选区文字在截图中往往像素偏小，直接识别容易漏识。
+            # 先按比例平滑放大到合适尺寸再识别，保证“任意大小选区都能 OCR”。
+            image = _upscale_for_ocr(self._image)
+
             # return_format="dict" 获取完整坐标信息，format_ocr_result_text 按阅读顺序合并
-            result = recognize_text(self._image, return_format="dict")
+            result = recognize_text(image, return_format="dict")
             if result and isinstance(result, dict) and result.get("code") == 100:
                 text = format_ocr_result_text(result)
                 if text and text.strip():
@@ -86,19 +116,30 @@ class OcrCopyController(QObject):
             log_debug("OCR 复制：QImage 转换失败，跳过", "OcrCopy")
             return
 
-        # 旧线程仍在跑则断开其结果连接（结果丢弃），由其 finished 自行 deleteLater
-        if self._thread and self._thread.isRunning():
+        # 旧线程处理：先置空引用，避免线程自毁后留下悬空 C++ 对象引用
+        old_thread = self._thread
+        self._thread = None
+        if old_thread is not None:
             try:
-                from core.qt_utils import safe_disconnect
-                safe_disconnect(self._thread.finished_signal)
-            except Exception:
+                # 若旧线程仍存活，断开其结果连接（结果丢弃），让其 finished 自行 deleteLater
+                if old_thread.isRunning():
+                    from core.qt_utils import safe_disconnect
+                    safe_disconnect(old_thread.finished_signal)
+            except RuntimeError:
+                # C++ 对象已销毁（已自毁），无需处理
                 pass
 
         self._thread = _OcrCopyThread(image)
         self._thread.finished_signal.connect(self._on_finished)
         self._thread.finished.connect(self._thread.deleteLater)
+        # 线程结束后清空引用，防止 self._thread 指向已销毁对象（二次调用 isRunning 会崩）
+        self._thread.finished.connect(self._clear_thread)
         self._thread.start()
         log_debug("OCR 复制：已启动后台识别线程", "OcrCopy")
+
+    def _clear_thread(self):
+        """线程结束（finished → deleteLater）后清空引用，避免悬空 C++ 对象引用。"""
+        self._thread = None
 
     def _on_finished(self, success: bool, result: str):
         """OCR 完成回调（主线程）。"""
@@ -109,7 +150,12 @@ class OcrCopyController(QObject):
                 log_error(f"OCR 复制：写入剪贴板失败: {e}", "OcrCopy")
                 return
             from core.toast import show_toast
-            show_toast(_tr("OCR Copy"), _tr("Text copied to clipboard"))
+            show_toast(
+                "",
+                _tr("Text copied to clipboard"),
+                duration_ms=1000,
+                icon="success",
+            )
             log_info("OCR 复制成功，文字已复制到剪贴板", "OcrCopy")
         else:
             from ui.dialogs import show_modeless_warning_dialog

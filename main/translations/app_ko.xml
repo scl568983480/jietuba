@@ -311,6 +311,10 @@ Replace it?</source>
         <translation>스크린샷 번역</translation>
     </message>
     <message>
+        <source>OCR Copy</source>
+        <translation>OCR 복사</translation>
+    </message>
+    <message>
         <source>Cursor Move Keys</source>
         <translation>커서 이동 키</translation>
     </message>

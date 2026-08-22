@@ -1,0 +1,35 @@
+[20:11:30] [INFO] [I18n] 已加载语言 (QM): 简体中文 (zh)
+[20:11:30] [INFO] [I18n] 语言设置: 简体中文
+[20:11:30] [INFO] [Preload] 截图模块预加载完成
+[20:11:30] [INFO] [OCR] 开始在后台线程预加载 OCR 模块和引擎...
+[20:11:30] [INFO] [OCR] 自动选择引擎: ppocr_rust (ppocr_rust 原生引擎)
+[20:11:30] [INFO] [OCR] OCR 预加载成功
+[20:11:30] [INFO] [Clipboard] 管理器初始化成功
+[20:11:30] [INFO] [Clipboard] 历史限制设置为: 1000
+[20:11:31] [INFO] [Clipboard] 开始监听剪贴板
+[20:11:31] [INFO] [Clipboard] 剪贴板监听已按设置启动
+[20:11:31] [INFO] [Hotkey] 截图热键已注册: ctrl+1
+[20:11:31] [INFO] [Hotkey] 智能翻译热键已注册: alt+a
+[20:11:31] [INFO] [Hotkey] 剪贴板热键已注册: ctrl+2
+[20:11:31] [INFO] [Hotkey] 剪贴板备用热键 win+v 注册失败（可能被系统占用）
+[20:11:31] [INFO] [PinManager] 钉图管理器已初始化
+[20:17:14] [INFO] [MainApp] 启动后台截图线程
+[20:17:20] [INFO] [ScreenshotOcrCopy] 启动 OCR 复制模式
+[20:17:20] [INFO] [ScreenshotWindow] 截图会话资源释放完成
+[20:17:21] [INFO] [OcrCopy] OCR 复制成功，文字已复制到剪贴板
+[20:17:41] [INFO] [MainApp] 启动后台截图线程
+[20:17:49] [INFO] [ScreenshotWindow] 截图会话资源释放完成
+[20:17:55] [INFO] [Logger] 日志级别已设置为: INFO
+[20:17:55] [INFO] [page6] 已写入开机自启注册表项: "C:\Users\Administrator\AppData\Local\Programs\Python\Python311\python.exe" "Y:\AI\jietuba\main\main_app.py"
+[20:17:55] [INFO] [Settings] 已保存所有设置
+[20:17:55] [INFO] [Hotkey] 截图热键已注册: ctrl+1
+[20:17:55] [INFO] [Hotkey] 智能翻译热键已注册: alt+a
+[20:17:55] [INFO] [Hotkey] 剪贴板热键已注册: ctrl+2
+[20:17:55] [INFO] [Hotkey] 剪贴板备用热键 win+v 注册失败（可能被系统占用）
+[20:17:55] [INFO] [Clipboard] 历史限制设置为: 1000
+[20:17:56] [INFO] [MainApp] 启动后台截图线程
+[20:18:00] [INFO] [ScreenshotWindow] 截图会话资源释放完成
+[20:18:54] [INFO] [MainApp] 启动后台截图线程
+[20:18:56] [INFO] [ScreenshotOcrCopy] 启动 OCR 复制模式
+[20:18:56] [INFO] [ScreenshotWindow] 截图会话资源释放完成
+[20:18:56] [INFO] [OcrCopy] OCR 复制成功，文字已复制到剪贴板

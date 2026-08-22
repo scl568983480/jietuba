@@ -1,5 +1,3 @@
-**[中文](README.md)** | [English](README_EN.md)
-
 # 截图 & 剪切板管理软件 — 截图吧
 ![jietuba_gif_20260404_000903](https://github.com/user-attachments/assets/5318b991-b0de-46a2-9c0e-d75eeae2a827)
 

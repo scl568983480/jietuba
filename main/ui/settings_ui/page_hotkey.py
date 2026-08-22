@@ -18,7 +18,7 @@ from ..inapp_key_edit import InAppKeyEdit
 
 # ── 应用内快捷键定义表（分组）──────────────────────────────
 SCREENSHOT_KEYS = [
-    ("inapp_confirm",   "Confirm Screenshot",     "ctrl+c"),
+    ("inapp_confirm",   "Confirm Screenshot",     "ctrl+s"),
     ("inapp_pin",       "Pin Image",              "ctrl+d"),
     ("inapp_undo",      "Undo",                   "ctrl+z"),
     ("inapp_redo",      "Redo",                   "ctrl+y"),
@@ -26,6 +26,7 @@ SCREENSHOT_KEYS = [
     ("inapp_zoom_in",   "Magnifier Zoom In",      "pageup"),
     ("inapp_zoom_out",  "Magnifier Zoom Out",     "pagedown"),
     ("inapp_translate", "Screenshot Translate",    "shift+c"),
+    ("inapp_ocr_copy",  "OCR Copy",               "ctrl+c"),
 ]
 
 PIN_KEYS = [

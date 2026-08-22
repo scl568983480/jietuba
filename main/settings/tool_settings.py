@@ -139,7 +139,7 @@ class ToolSettingsManager(QObject):
         "global_hotkeys_disabled": False,           # 是否禁用全局热键
 
         # 应用内快捷键
-        "inapp_confirm": "ctrl+c",             # 确认截图（复制到剪贴板）
+        "inapp_confirm": "ctrl+s",             # 确认截图（复制到剪贴板）
         "inapp_pin": "ctrl+d",                 # 钉图
         "inapp_undo": "ctrl+z",                # 撤销
         "inapp_redo": "ctrl+y",                # 重做
@@ -150,6 +150,7 @@ class ToolSettingsManager(QObject):
         "inapp_zoom_in": "pageup",             # 放大镜放大
         "inapp_zoom_out": "pagedown",          # 放大镜缩小
         "inapp_translate": "shift+c",          # 截图翻译
+        "inapp_ocr_copy": "ctrl+c",            # OCR 复制（识别文字到剪贴板）
         "inapp_cursor_move_mode": "both",      # 鼠标微移模式: both / arrows / wasd
         # ==================== 2. 截图 ====================
         # 智能选择
@@ -268,8 +269,36 @@ class ToolSettingsManager(QObject):
     def __init__(self, qsettings: Optional[QSettings] = None):
         super().__init__()
         self.qsettings = qsettings if qsettings is not None else QSettings("Jietuba", "ToolSettings")
+        self._migrate_inapp_shortcuts_v1()
         self._tool_settings: Dict[str, ToolSettings] = {}
         self._initialize_tools()
+
+    def _migrate_inapp_shortcuts_v1(self):
+        """一次性迁移：确认截图默认由 ctrl+c 改为 ctrl+s。
+
+        历史版本中「确认截图」与新增的「OCR 复制」默认都使用 ctrl+c，二者冲突。
+        本迁移把仍停留在旧默认 ctrl+c（且用户尚未自定义 OCR 复制键）的确认快捷键
+        升级为 ctrl+s，避免与 OCR 复制默认键冲突。仅执行一次（由标记位控制）。
+        """
+        from core.logger import log_debug
+        marker = "inapp/migrated_shortcuts_v1"
+        if self.qsettings.value(marker, False, type=bool):
+            return
+        try:
+            saved_confirm = self.qsettings.value("inapp/inapp_confirm", None)
+            saved_ocr = self.qsettings.value("inapp/inapp_ocr_copy", None)
+            if saved_confirm in (None, "ctrl+c") and saved_ocr in (None, ""):
+                self.qsettings.setValue("inapp/inapp_confirm", "ctrl+s")
+                self.qsettings.setValue("inapp/inapp_ocr_copy", "ctrl+c")
+                self.qsettings.sync()
+                log_debug(
+                    "迁移：确认截图快捷键 ctrl+c → ctrl+s，OCR 复制默认 ctrl+c",
+                    "ToolSettings",
+                )
+        except Exception as e:  # 迁移失败不应阻断启动
+            log_debug(f"应用内快捷键迁移失败: {e}", "ToolSettings")
+        finally:
+            self.qsettings.setValue(marker, True)
     
     @property
     def settings(self):

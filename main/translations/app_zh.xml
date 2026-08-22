@@ -316,6 +316,10 @@ Replace it?</source>
         <translation>截图翻译</translation>
     </message>
     <message>
+        <source>OCR Copy</source>
+        <translation>OCR 复制</translation>
+    </message>
+    <message>
         <source>Cursor Move Keys</source>
         <translation>鼠标微移按键</translation>
     </message>

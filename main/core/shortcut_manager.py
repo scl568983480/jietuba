@@ -554,9 +554,17 @@ def get_key_parse_map() -> Dict[str, int]:
 
 def parse_shortcut_to_qt(text: str):
     """
-    将 "ctrl+c" / "pageup" / "shift+c" 风格字符串解析为 (Qt.Key, Qt.KeyboardModifier)。
+    将 "ctrl+c" / "pageup" / "shift+c" / "ctrl+1" / "ctrl+[" / "c" 风格字符串
+    解析为 (Qt.Key, Qt.KeyboardModifier)。
 
     返回 None 表示解析失败。供各 ShortcutHandler 在 __init__ 中一次性调用。
+
+    主键支持范围：
+      - 命名键  : esc / tab / delete / pageup / space / enter ...（见 get_key_parse_map()）
+      - 字母    : "c"  -> Key_C（大小写均可，Unicode 码点一致）
+      - 功能键  : "f1".."f24"
+      - 任意单字符键（数字、标点、括号等）: "1" "[" "=" 等，直接用其 Unicode 码点，
+        与 QKeyEvent.key() 在按下该键时的返回值一致。
     """
     from PySide6.QtCore import Qt as _Qt
 
@@ -569,8 +577,11 @@ def parse_shortcut_to_qt(text: str):
 
     _MOD_MAP = {
         "ctrl": _Qt.KeyboardModifier.ControlModifier,
+        "control": _Qt.KeyboardModifier.ControlModifier,
         "shift": _Qt.KeyboardModifier.ShiftModifier,
         "alt": _Qt.KeyboardModifier.AltModifier,
+        "meta": _Qt.KeyboardModifier.MetaModifier,
+        "win": _Qt.KeyboardModifier.MetaModifier,
     }
     key_map = get_key_parse_map()
 
@@ -581,9 +592,15 @@ def parse_shortcut_to_qt(text: str):
         if p in _MOD_MAP:
             mods |= _MOD_MAP[p]
         elif p in key_map:
+            # 命名键（如 pageup / delete / space / esc ...）
             key = _Qt.Key(key_map[p])
         elif len(p) == 1 and p.isalpha():
+            # 字母：Qt.Key 对字母采用大写码点（Key_C == ord('C')），故需 upper()
             key = _Qt.Key(ord(p.upper()))
+        elif len(p) == 1:
+            # 其它单字符键（数字、标点、括号等）：其 Unicode 码点即对应 Qt.Key 值，
+            # 与 QKeyEvent.key() 在按下该键时的返回值一致。
+            key = _Qt.Key(ord(p))
         elif p.startswith("f") and p[1:].isdigit():
             fn = int(p[1:])
             if 1 <= fn <= 24:
@@ -592,6 +609,24 @@ def parse_shortcut_to_qt(text: str):
     if key == _Qt.Key.Key_unknown:
         return None
     return (key, mods)
+
+
+# 匹配快捷键时忽略的修饰键位：这些位在某些键盘 / NumLock 状态下会被 Qt 附带报告，
+# 若做严格相等比较会导致本应匹配的快捷键失效（如小键盘 Keypad、输入法组切换键）。
+_IGNORED_MODIFIERS = (
+    Qt.KeyboardModifier.KeypadModifier
+    | Qt.KeyboardModifier.GroupSwitchModifier
+)
+
+
+def normalize_modifiers(mods) -> int:
+    """去除与按键意图无关的修饰位（小键盘、输入法组切换），用于快捷键匹配。
+
+    配置里保存的快捷键字符串不含这些位（例如 "ctrl+1" 不区分主键盘/小键盘），
+    因此匹配时把事件里附带的这些位抹掉，保证两种来源比较一致。
+    """
+    m = int(mods.value) if hasattr(mods, "value") else int(mods)
+    return m & ~int(_IGNORED_MODIFIERS.value)
 
 
 def load_inapp_bindings(keys_of_interest: Optional[List[str]] = None) -> Dict:
@@ -611,6 +646,7 @@ def load_inapp_bindings(keys_of_interest: Optional[List[str]] = None) -> Dict:
             "inapp_delete",
             "inapp_copy_pin", "inapp_thumbnail", "inapp_toggle_toolbar",
             "inapp_zoom_in", "inapp_zoom_out", "inapp_translate",
+            "inapp_ocr_copy",
         ]
 
     result = {}

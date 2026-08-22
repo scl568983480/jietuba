@@ -19,6 +19,7 @@ from ..models import (
     TranslationRequest,
     TranslationResult,
 )
+from ..provider import TranslationProvider
 
 
 # Human-readable language names keyed by the application's BCP-47-style codes.

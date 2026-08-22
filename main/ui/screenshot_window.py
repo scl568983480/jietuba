@@ -24,7 +24,9 @@ from settings import get_tool_settings_manager
 from stitch.scroll_window import ScrollCaptureWindow
 from core.logger import log_debug, log_info, log_warning, log_error, log_exception
 from core import safe_event
-from core.shortcut_manager import ShortcutManager, ShortcutHandler
+from core.shortcut_manager import (
+    ShortcutManager, ShortcutHandler, normalize_modifiers,
+)
 
 
 class ScreenshotShortcutHandler(ShortcutHandler):
@@ -38,6 +40,7 @@ class ScreenshotShortcutHandler(ShortcutHandler):
             "inapp_confirm", "inapp_pin", "inapp_undo", "inapp_redo",
             "inapp_delete",
             "inapp_zoom_in", "inapp_zoom_out", "inapp_translate",
+            "inapp_ocr_copy",
         ])
         self._move_keys = load_move_keys()
 
@@ -61,21 +64,27 @@ class ScreenshotShortcutHandler(ShortcutHandler):
         if not binding:
             return False
         want_key, want_mods = binding
-        return event.key() == want_key and event.modifiers() == want_mods
+        # 忽略小键盘/输入法组切换等无关修饰位，确保快捷键稳定匹配
+        return (event.key() == want_key
+                and normalize_modifiers(event.modifiers()) == int(want_mods.value))
 
     def handle_key(self, event) -> bool:
         w = self._window
         is_text_editing = w._is_text_editing()
 
-        # 文字编辑模式下，部分按键交给 QGraphicsTextItem
+        # 文字编辑模式下，未被任何应用内快捷键占用的按键才交给 QGraphicsTextItem。
+        # 否则像 OCR 复制（默认 ctrl+c）这类与文本编辑键冲突的快捷键会被直接吞掉，
+        # 导致「其它应用内快捷键都正常、唯独 OCR 复制失效」。
         if is_text_editing:
-            if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
-                return False
-            if event.key() in (Qt.Key.Key_C, Qt.Key.Key_D):
-                return False
-            if (event.key() in (Qt.Key.Key_Z, Qt.Key.Key_Y)
-                    and event.modifiers() == Qt.KeyboardModifier.ControlModifier):
-                return False
+            matched = any(self._match(event, k) for k in self._bindings)
+            if not matched:
+                if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                    return False
+                if event.key() in (Qt.Key.Key_C, Qt.Key.Key_D):
+                    return False
+                if (event.key() in (Qt.Key.Key_Z, Qt.Key.Key_Y)
+                        and event.modifiers() == Qt.KeyboardModifier.ControlModifier):
+                    return False
 
         # ── 鼠标微移 ──
         if not is_text_editing:
@@ -127,6 +136,13 @@ class ScreenshotShortcutHandler(ShortcutHandler):
                 if hasattr(w, 'toolbar') and w.toolbar:
                     w.toolbar.screenshot_translate_clicked.emit()
                 return True
+
+        # OCR 复制
+        if self._match(event, "inapp_ocr_copy"):
+            if w.scene and w.scene.selection_model.is_confirmed:
+                w.action_handler.handle_ocr_copy()
+            return True
+            return True
 
         # 取色（单键 C，无修饰键 — 保留硬编码）
         if event.key() == Qt.Key.Key_C:
