@@ -39,7 +39,7 @@ APP_DEFAULT_SETTINGS = {
     "ocr_upscale_enabled": False,
     "ocr_upscale_factor": 2.0,
     "pin_auto_toolbar": True,
-    "translation_provider": "google",
+    "translation_provider": "openapi",
     "openapi_url": "",
     "openapi_api_key": "",
     "openapi_model": "",
@@ -117,7 +117,7 @@ class MockConfig:
     def set_openapi_api_key(self, v): pass
     def get_openapi_model(self): return ""
     def set_openapi_model(self, v): pass
-    def get_translation_provider(self): return "google"
+    def get_translation_provider(self): return "openapi"
     def set_translation_provider(self, v): pass
     def get_translation_provider_config(self, provider_id):
         if provider_id == "openapi":

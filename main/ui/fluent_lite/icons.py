@@ -35,6 +35,7 @@ class FluentIcon(Enum):
     CANCEL = "CancelClose"
     CHECK = "CheckWhite"
     SPARKLE = "SparkleWhite"
+    AI = "AI"
     SAVE = "Save"
     FILTER = "Filter"
     DATE_TIME = "DateTime"

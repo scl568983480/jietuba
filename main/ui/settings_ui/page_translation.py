@@ -1,20 +1,24 @@
-﻿# -*- coding: utf-8 -*-
-"""翻译设置页 — Fluent Design"""
+# -*- coding: utf-8 -*-
+"""翻译设置页 — Fluent Design
+
+仅保留各云翻译服务商（Amazon / Google / Azure）的配置与翻译选项。
+大语言模型（LLM）相关的「翻译引擎」与 OpenAI 接口配置已拆到同级
+的 LLM 设置页（page_llm.py）。
+"""
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QLineEdit, QScrollArea,
+    QScrollArea,
 )
 from PySide6.QtCore import Qt
-from ui.fluent_lite.theme import ACCENT
 from ui.fluent_lite import (
     SwitchSettingCard, SettingCard as FSettingCard,
-    FluentIcon, ComboBox, CaptionLabel, LineEdit,
-    PushButton, HyperlinkButton,
+    FluentIcon, ComboBox,
 )
-from .components import SettingCardGroup, WhiteCard, adjust_button_width, apply_theme_text_style
+from .components import (
+    SettingCardGroup, apply_theme_text_style, _add_text_setting,
+)
 
 from translation.languages import TRANSLATION_LANGUAGES
-from translation.service import create_default_translation_service
 
 
 def create_translation_page(dialog) -> QWidget:
@@ -28,85 +32,6 @@ def create_translation_page(dialog) -> QWidget:
     layout = QVBoxLayout(page)
     layout.setContentsMargins(0, 0, 10, 0)
     layout.setSpacing(20)
-
-    # ════ 翻译引擎 ════
-    grp_engine = SettingCardGroup(dialog.tr("Translation Engine"), page)
-    engine_card = FSettingCard(
-        FluentIcon.LANGUAGE,
-        dialog.tr("Translation Engine"),
-        parent=grp_engine,
-    )
-    dialog.translation_provider_combo = ComboBox(engine_card)
-    dialog.translation_provider_combo.setFixedWidth(180)
-    service = create_default_translation_service(dialog.config_manager)
-    current_provider = dialog.config_manager.get_translation_provider()
-    current_provider_index = 0
-    for index, metadata in enumerate(service.registry.available_providers()):
-        dialog.translation_provider_combo.addItem(
-            metadata.display_name, userData=metadata.provider_id
-        )
-        if metadata.provider_id == current_provider:
-            current_provider_index = index
-    dialog.translation_provider_combo.setCurrentIndex(current_provider_index)
-    engine_card.hBoxLayout.addWidget(
-        dialog.translation_provider_combo, 0, Qt.AlignmentFlag.AlignRight
-    )
-    engine_card.hBoxLayout.addSpacing(16)
-    grp_engine.addSettingCard(engine_card)
-    layout.addWidget(grp_engine)
-
-    # ════ OpenAI API ════
-    grp_api = SettingCardGroup(dialog.tr("OpenAI API"), page)
-
-    # API URL
-    dialog.openapi_url_input = _add_text_setting(
-        dialog,
-        grp_api,
-        dialog.tr("API URL"),
-        dialog.config_manager.get_openapi_url(),
-        "https://api.openai.com/v1/chat/completions",
-    )
-
-    # API Key（卡片，带显示/隐藏）
-    key_card = WhiteCard(grp_api)
-    key_h = QHBoxLayout(key_card)
-    key_h.setContentsMargins(20, 12, 20, 12)
-    key_h.setSpacing(10)
-
-    key_lbl = QLabel(dialog.tr("API Key"), key_card)
-    apply_theme_text_style(key_lbl, 14)
-    key_lbl.setFixedWidth(100)
-    key_h.addWidget(key_lbl)
-
-    dialog.openapi_api_key_input = LineEdit(key_card, use_default_style=False)
-    dialog.openapi_api_key_input.setPlaceholderText("sk-...")
-    dialog.openapi_api_key_input.setText(
-        dialog.config_manager.get_openapi_api_key()
-    )
-    dialog.openapi_api_key_input.setEchoMode(LineEdit.EchoMode.Password)
-    dialog.openapi_api_key_input.setStyleSheet(dialog._get_input_style())
-    key_h.addWidget(dialog.openapi_api_key_input, 1)
-
-    dialog.show_api_key_btn = PushButton(dialog.tr("Show"), key_card)
-    dialog.show_api_key_btn.setFixedHeight(32)
-    adjust_button_width(dialog.show_api_key_btn, min_width=60)
-    dialog.show_api_key_btn.clicked.connect(
-        lambda: _toggle_api_key_visibility(dialog)
-    )
-    key_h.addWidget(dialog.show_api_key_btn)
-    key_card.setFixedHeight(58)
-    grp_api.addSettingCard(key_card)
-
-    # Model
-    dialog.openapi_model_input = _add_text_setting(
-        dialog,
-        grp_api,
-        dialog.tr("Model"),
-        dialog.config_manager.get_openapi_model(),
-        "gpt-4o",
-    )
-
-    layout.addWidget(grp_api)
 
     # ════ Amazon Translate ════
     grp_amazon = SettingCardGroup(dialog.tr("Amazon Translate"), page)
@@ -182,14 +107,9 @@ def create_translation_page(dialog) -> QWidget:
     )
     layout.addWidget(grp_azure)
 
-    dialog.openapi_settings_group = grp_api
     dialog.amazon_translate_settings_group = grp_amazon
     dialog.google_translate_settings_group = grp_google
     dialog.azure_translate_settings_group = grp_azure
-    dialog.translation_provider_combo.currentIndexChanged.connect(
-        lambda _index: _update_provider_groups(dialog)
-    )
-    _update_provider_groups(dialog)
 
     # ════ 翻译选项 ════
     grp_opts = SettingCardGroup(dialog.tr("Translation Options"), page)
@@ -247,89 +167,6 @@ def create_translation_page(dialog) -> QWidget:
 
     layout.addWidget(grp_opts)
 
-    # 提示
-    info_label = QLabel(
-        "💡 "
-        + dialog.tr(
-            "OpenAI-compatible endpoint. Get an API key from your provider."
-        )
-        + f' <a href="https://platform.openai.com/api-keys" style="color:{ACCENT};">platform.openai.com</a>',
-        page,
-    )
-    info_label.setOpenExternalLinks(True)
-    info_label.setWordWrap(True)
-    info_label.setStyleSheet("padding: 5px; font-size: 12px; color: #999;")
-    layout.addWidget(info_label)
-    dialog.openapi_translation_info_label = info_label
-    _update_provider_groups(dialog)
-
     layout.addStretch()
     scroll.setWidget(page)
     return scroll
-
-
-def _toggle_api_key_visibility(dialog):
-    """切换 API 密钥显示/隐藏"""
-    if dialog.openapi_api_key_input.echoMode() == QLineEdit.EchoMode.Password:
-        dialog.openapi_api_key_input.setEchoMode(QLineEdit.EchoMode.Normal)
-        dialog.show_api_key_btn.setText(dialog.tr("Hide"))
-        adjust_button_width(dialog.show_api_key_btn, min_width=60)
-    else:
-        dialog.openapi_api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
-        dialog.show_api_key_btn.setText(dialog.tr("Show"))
-        adjust_button_width(dialog.show_api_key_btn, min_width=60)
-
-
-def _add_text_setting(
-    dialog,
-    group,
-    label: str,
-    value: str,
-    placeholder: str,
-    *,
-    password: bool = False,
-):
-    card = WhiteCard(group)
-    row = QHBoxLayout(card)
-    row.setContentsMargins(20, 12, 20, 12)
-    row.setSpacing(10)
-    title = QLabel(label, card)
-    apply_theme_text_style(title, 14)
-    title.setFixedWidth(135)
-    row.addWidget(title)
-    edit = LineEdit(card, use_default_style=False)
-    edit.setText(value or "")
-    edit.setPlaceholderText(placeholder)
-    if password:
-        edit.setEchoMode(QLineEdit.EchoMode.Password)
-    edit.setStyleSheet(dialog._get_input_style())
-    row.addWidget(edit, 1)
-    card.setFixedHeight(58)
-    group.addSettingCard(card)
-    return edit
-
-
-def _update_provider_groups(dialog) -> None:
-    provider_id = dialog.translation_provider_combo.currentData()
-    dialog.openapi_settings_group.setVisible(provider_id == "openapi")
-    dialog.amazon_translate_settings_group.setVisible(
-        provider_id == "amazon"
-    )
-    dialog.google_translate_settings_group.setVisible(
-        provider_id == "google"
-    )
-    dialog.azure_translate_settings_group.setVisible(
-        provider_id == "azure"
-    )
-    if hasattr(dialog, "openapi_translation_info_label"):
-        dialog.openapi_translation_info_label.setVisible(
-            provider_id == "openapi"
-        )
-    if hasattr(dialog, "split_sentences_toggle"):
-        dialog.split_sentences_toggle.setVisible(
-            provider_id == "openapi"
-        )
-    if hasattr(dialog, "preserve_formatting_toggle"):
-        dialog.preserve_formatting_toggle.setVisible(
-            provider_id == "openapi"
-        )

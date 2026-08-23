@@ -173,10 +173,10 @@ class TestToolSettingsManager:
         assert "ocr_enabled" in defaults
         assert defaults["translation_hotkey"] == ""
         assert defaults["translation_hotkey_2"] == ""
-        assert defaults["translation_provider"] == "google"
+        assert defaults["translation_provider"] == "openapi"
 
     def test_translation_provider_configuration(self, manager):
-        assert manager.get_translation_provider() == "google"
+        assert manager.get_translation_provider() == "openapi"
 
         manager.set_openapi_url("https://api.example.com/v1/chat/completions")
         manager.set_openapi_api_key("test-key")

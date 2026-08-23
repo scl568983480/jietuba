@@ -213,7 +213,7 @@ class ToolSettingsManager(QObject):
         # 遮罩色 Alpha 固定为 120，不提供前端设置
 
         # ==================== 5. 翻译 ====================
-        "translation_provider": "google",      # 当前翻译引擎
+        "translation_provider": "openapi",     # 当前翻译引擎（默认 OpenAI API）
         "openapi_url": "",                      # OpenAI 兼容 API 地址
         "openapi_api_key": "",                  # OpenAI 兼容 API Key
         "openapi_model": "",                    # 模型名称（如 gpt-4o）

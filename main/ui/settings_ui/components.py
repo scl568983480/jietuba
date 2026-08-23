@@ -2,7 +2,7 @@
 """
 设置窗口 — 共享 UI 组件库
 """
-from PySide6.QtWidgets import QWidget, QFrame, QVBoxLayout, QHBoxLayout, QLabel
+from PySide6.QtWidgets import QWidget, QFrame, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QColor, QPainter
 from core import safe_event
@@ -13,6 +13,7 @@ from ui.fluent_lite import (
     SwitchSettingCard as _SwitchSettingCard, FluentIcon,
     SettingCard as FluentSettingCard,
     SettingCardGroup as _SettingCardGroupBase,
+    LineEdit,
 )
 
 
@@ -249,4 +250,46 @@ def make_switch_card(dialog, icon, title, content, checked, attr_name, parent=No
     card.setChecked(checked)
     setattr(dialog, attr_name, card)
     return card
+
+
+def _add_text_setting(
+    dialog,
+    group,
+    label: str,
+    value: str,
+    placeholder: str,
+    *,
+    password: bool = False,
+):
+    """在分组内新增一行「标签 + 单行输入」卡片，并返回输入控件。"""
+    card = WhiteCard(group)
+    row = QHBoxLayout(card)
+    row.setContentsMargins(20, 12, 20, 12)
+    row.setSpacing(10)
+    title = QLabel(label, card)
+    apply_theme_text_style(title, 14)
+    title.setFixedWidth(135)
+    row.addWidget(title)
+    edit = LineEdit(card, use_default_style=False)
+    edit.setText(value or "")
+    edit.setPlaceholderText(placeholder)
+    if password:
+        edit.setEchoMode(QLineEdit.EchoMode.Password)
+    edit.setStyleSheet(dialog._get_input_style())
+    row.addWidget(edit, 1)
+    card.setFixedHeight(58)
+    group.addSettingCard(card)
+    return edit
+
+
+def _toggle_api_key_visibility(dialog):
+    """切换 API 密钥输入框的显示/隐藏。"""
+    if dialog.openapi_api_key_input.echoMode() == QLineEdit.EchoMode.Password:
+        dialog.openapi_api_key_input.setEchoMode(QLineEdit.EchoMode.Normal)
+        dialog.show_api_key_btn.setText(dialog.tr("Hide"))
+        adjust_button_width(dialog.show_api_key_btn, min_width=40, horizontal_padding=1)
+    else:
+        dialog.openapi_api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+        dialog.show_api_key_btn.setText(dialog.tr("Show"))
+        adjust_button_width(dialog.show_api_key_btn, min_width=40, horizontal_padding=1)
  

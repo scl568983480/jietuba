@@ -37,6 +37,7 @@ from .page_hotkey import create_hotkey_page
 from .page_capture import create_capture_page
 from .page_clipboard import create_clipboard_page
 from .page_translation import create_translation_page
+from .page_llm import create_llm_page
 from .page_log import create_log_page, refresh_latest_log_label
 from .page_misc import create_misc_page
 from .page_appearance import create_appearance_page
@@ -198,10 +199,11 @@ class SettingsDialog(FrostedFramelessDialog):
         self.content_stack.addWidget(create_clipboard_page(self))        # 2
         self.content_stack.addWidget(create_appearance_page(self))       # 3
         self.content_stack.addWidget(create_translation_page(self))      # 4
-        self.content_stack.addWidget(create_log_page(self))              # 5
-        self.content_stack.addWidget(create_misc_page(self))             # 6
-        self.content_stack.addWidget(create_developer_page(self))        # 7
-        self.content_stack.addWidget(create_about_page(self))            # 8
+        self.content_stack.addWidget(create_llm_page(self))              # 5
+        self.content_stack.addWidget(create_log_page(self))              # 6
+        self.content_stack.addWidget(create_misc_page(self))             # 7
+        self.content_stack.addWidget(create_developer_page(self))        # 8
+        self.content_stack.addWidget(create_about_page(self))            # 9
 
         right_layout.addWidget(self.content_title)
         right_layout.addWidget(self.content_stack)
@@ -229,9 +231,10 @@ class SettingsDialog(FrostedFramelessDialog):
             ("clipboard", FluentIcon.PASTE, self.tr("Clipboard"), 2, NavigationItemPosition.TOP),
             ("appearance", FluentIcon.BRUSH, self.tr("Appearance"), 3, NavigationItemPosition.TOP),
             ("translation", FluentIcon.LANGUAGE, self.tr("Translation"), 4, NavigationItemPosition.TOP),
-            ("log", FluentIcon.HISTORY, self.tr("Log Settings"), 5, NavigationItemPosition.TOP),
-            ("other", FluentIcon.APPLICATION, self.tr("Other"), 6, NavigationItemPosition.TOP),
-            ("about", FluentIcon.INFO, self.tr("About"), 8, NavigationItemPosition.BOTTOM),
+            ("llm", FluentIcon.AI, self.tr("LLM"), 5, NavigationItemPosition.TOP),
+            ("log", FluentIcon.HISTORY, self.tr("Log Settings"), 6, NavigationItemPosition.TOP),
+            ("other", FluentIcon.APPLICATION, self.tr("Other"), 7, NavigationItemPosition.TOP),
+            ("about", FluentIcon.INFO, self.tr("About"), 9, NavigationItemPosition.BOTTOM),
         ]
 
         for route_key, icon, text, stack_index, position in self._nav_items:
@@ -353,9 +356,10 @@ class SettingsDialog(FrostedFramelessDialog):
             2: self.tr("Clipboard Settings"),
             3: self.tr("Appearance Settings"),
             4: self.tr("Translation Settings"),
-            5: self.tr("Log Settings"),
-            6: self.tr("Other Settings"),
-            8: self.tr("Software Information"),
+            5: self.tr("LLM 设置"),
+            6: self.tr("Log Settings"),
+            7: self.tr("Other Settings"),
+            9: self.tr("Software Information"),
         }
 
         if stack_index in title_map:
@@ -385,7 +389,7 @@ class SettingsDialog(FrostedFramelessDialog):
             self._open_developer_page()
 
     def _open_developer_page(self):
-        self.content_stack.setCurrentIndex(7)
+        self.content_stack.setCurrentIndex(8)
         self.content_title.setText(self.tr("Developer Options"))
         self.nav_list.clearCurrentItem()
         self._refresh_after_page_change()
@@ -593,12 +597,14 @@ class SettingsDialog(FrostedFramelessDialog):
         elif current_index == 4:
             self._reset_translation_page()
         elif current_index == 5:
-            self._reset_log_page()
+            self._reset_llm_page()
         elif current_index == 6:
-            self._reset_misc_page()
+            self._reset_log_page()
         elif current_index == 7:
-            self._reset_long_screenshot_page()
+            self._reset_misc_page()
         elif current_index == 8:
+            self._reset_long_screenshot_page()
+        elif current_index == 9:
             pass
 
     def _reset_hotkey_page(self):
@@ -714,18 +720,6 @@ class SettingsDialog(FrostedFramelessDialog):
 
     def _reset_translation_page(self):
         defaults = self.config_manager.APP_DEFAULT_SETTINGS
-        if hasattr(self, 'translation_provider_combo'):
-            index = self.translation_provider_combo.findData(
-                defaults["translation_provider"]
-            )
-            if index >= 0:
-                self.translation_provider_combo.setCurrentIndex(index)
-        if hasattr(self, 'openapi_url_input'):
-            self.openapi_url_input.setText(defaults["openapi_url"])
-        if hasattr(self, 'openapi_api_key_input'):
-            self.openapi_api_key_input.setText(defaults["openapi_api_key"])
-        if hasattr(self, 'openapi_model_input'):
-            self.openapi_model_input.setText(defaults["openapi_model"])
         if hasattr(self, 'amazon_translate_region_input'):
             self.amazon_translate_region_input.setText(
                 defaults["amazon_translate_region"]
@@ -766,6 +760,38 @@ class SettingsDialog(FrostedFramelessDialog):
             self.split_sentences_toggle.setChecked(defaults["translation_split_sentences"])
         if hasattr(self, 'preserve_formatting_toggle'):
             self.preserve_formatting_toggle.setChecked(defaults["translation_preserve_formatting"])
+
+    def _reset_llm_page(self):
+        """重置大模型（LLM）设置页面。"""
+        defaults = self.config_manager.APP_DEFAULT_SETTINGS
+        if hasattr(self, 'translation_provider_combo'):
+            index = self.translation_provider_combo.findData(
+                defaults["translation_provider"]
+            )
+            if index >= 0:
+                self.translation_provider_combo.setCurrentIndex(index)
+        if hasattr(self, 'openapi_url_input'):
+            self.openapi_url_input.setText(defaults["openapi_url"])
+        if hasattr(self, 'openapi_api_key_input'):
+            self.openapi_api_key_input.setText(defaults["openapi_api_key"])
+        if hasattr(self, 'openapi_model_input'):
+            self.openapi_model_input.setText(defaults["openapi_model"])
+
+    def _update_provider_groups(self) -> None:
+        """根据当前翻译引擎，联动 LLM 页与翻译页中各分组的显隐。
+
+        - Amazon/Google/Azure 分组（位于翻译页）按所选引擎显示对应一个；
+        - OpenAI（大模型）分组位于专属 LLM 页，始终可见；
+        - “忽略换行 / 保留格式”仅在使用 OpenAI 引擎时显示。
+        """
+        provider_id = self.translation_provider_combo.currentData()
+        self.amazon_translate_settings_group.setVisible(provider_id == "amazon")
+        self.google_translate_settings_group.setVisible(provider_id == "google")
+        self.azure_translate_settings_group.setVisible(provider_id == "azure")
+        if hasattr(self, "split_sentences_toggle"):
+            self.split_sentences_toggle.setVisible(provider_id == "openapi")
+        if hasattr(self, "preserve_formatting_toggle"):
+            self.preserve_formatting_toggle.setVisible(provider_id == "openapi")
 
     def _reset_clipboard_page(self):
         defaults = self.config_manager.APP_DEFAULT_SETTINGS

@@ -20,13 +20,13 @@ def test_welcome_translation_defaults_to_google(qapp, tmp_path):
     manager = _manager(tmp_path)
     page = TranslationPage(manager)
 
-    assert manager.get_translation_provider() == "google"
-    assert page._provider_combo.currentData() == "google"
+    assert manager.get_translation_provider() == "openapi"
+    assert page._provider_combo.currentData() == "openapi"
     assert page.illus_area.isHidden()
     assert page._settings_card.property("welcomeSettingRow") is True
     assert (
         page._credential_stack.currentWidget()
-        is page._provider_pages["google"]
+        is page._provider_pages["openapi"]
     )
 
     page.close()

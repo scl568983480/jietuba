@@ -242,10 +242,10 @@ class TranslationPage(BasePage):
         saved_provider = (
             self._config.get_translation_provider()
             if hasattr(self._config, "get_translation_provider")
-            else "google"
+            else "openapi"
         )
         provider_index = self._provider_combo.findData(
-            saved_provider or "google"
+            saved_provider or "openapi"
         )
         self._provider_combo.setCurrentIndex(
             provider_index if provider_index >= 0 else 0

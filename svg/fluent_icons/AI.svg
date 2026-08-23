@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="#000000">
+  <!-- 右上角四角星 -->
+  <path d="M17.5 2.4 L18.07 4.43 L20.1 5 L18.07 5.57 L17.5 7.6 L16.93 5.57 L14.9 5 L16.93 4.43 Z"/>
+  <!-- AI 文字 -->
+  <text x="8.5" y="16.5" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="12" font-weight="700" text-anchor="middle">AI</text>
+</svg>

@@ -462,7 +462,7 @@ def _dev_bootstrap():
         def set_openapi_model(self, v): pass
 
         def get_translation_provider(self):
-            return self._def("translation_provider", "google")
+            return self._def("translation_provider", "openapi")
         def set_translation_provider(self, v): pass
 
         def get_google_translate_api_key(self):
