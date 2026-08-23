@@ -156,22 +156,34 @@ class VectorToolButton(QAbstractButton):
 
 
 class TranslateButton(QAbstractButton):
-    """Dashboard translation action."""
+    """Dashboard translation / summary action."""
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self._palette = DARK
+        self._mode = "translate"
         self._idle_text = _tr("Translate")
         self.setText(self._idle_text)
         self.setToolTip(_tr("Translate text"))
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFixedSize(96, 34)
 
+    def set_mode(self, mode: str) -> None:
+        """'translate' 或 'summary' —— 切换按钮文案语义。"""
+        self._mode = mode
+
     def retranslate(self, busy: bool) -> None:
-        self._idle_text = _tr("Translate")
-        self.setText(_tr("Translating...") if busy else self._idle_text)
-        self.setToolTip(_tr("Translate text"))
-        self.setAccessibleName(_tr("Translate text"))
+        if self._mode == "summary":
+            self._idle_text = _tr("Summarize")
+            loading_text = _tr("Summarizing...")
+            self.setToolTip(_tr("Summarize text"))
+            self.setAccessibleName(_tr("Summarize text"))
+        else:
+            self._idle_text = _tr("Translate")
+            loading_text = _tr("Translating...")
+            self.setToolTip(_tr("Translate text"))
+            self.setAccessibleName(_tr("Translate text"))
+        self.setText(loading_text if busy else self._idle_text)
         self.update()
 
     def apply_palette(self, palette: Palette) -> None:
@@ -228,7 +240,7 @@ class DashboardTitleBar(TitleBar):
             logo_painter.end()
             self.logo.setPixmap(logo_pixmap)
 
-        self.app_name = QLabel("jietuba", self)
+        self.app_name = QLabel(_tr("Screenshot Translate"), self)
         self.app_name.setObjectName("appName")
         self.hBoxLayout.insertWidget(0, self.logo)
         self.hBoxLayout.insertWidget(1, self.app_name)
@@ -237,6 +249,7 @@ class DashboardTitleBar(TitleBar):
         self.backend_badge.setObjectName("backendBadge")
         self.backend_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.backend_badge.setFixedHeight(22)
+        self.backend_badge.setVisible(False)  # 不展示引擎/模型名，避免占用标题栏
         self.hBoxLayout.insertWidget(self.hBoxLayout.count() - 3, self.backend_badge)
 
         self.pin_button = QPushButton(_tr("Pin"), self)
@@ -258,6 +271,24 @@ class DashboardTitleBar(TitleBar):
         self.minBtn.setToolTip(_tr("Minimize"))
         self.maxBtn.setToolTip(_tr("Maximize"))
         self.closeBtn.setToolTip(_tr("Close"))
+
+    def set_logo(self, icon_name: str, accessible_name: str) -> None:
+        """替换标题栏左侧 logo（翻译 ↔ 总结）。"""
+        self.logo.setAccessibleName(accessible_name)
+        logo_icon = ResourceManager.get_icon(
+            ResourceManager.get_icon_path(icon_name), 22
+        )
+        if logo_icon.isNull():
+            self.logo.setText(accessible_name)
+        else:
+            pixmap = logo_icon.pixmap(16, 16)
+            painter = QPainter(pixmap)
+            painter.setCompositionMode(
+                QPainter.CompositionMode.CompositionMode_SourceIn
+            )
+            painter.fillRect(pixmap.rect(), QColor("white"))
+            painter.end()
+            self.logo.setPixmap(pixmap)
 
     def apply_palette(self, palette: Palette) -> None:
         for button in (self.minBtn, self.maxBtn, self.closeBtn):
@@ -329,9 +360,10 @@ class TranslationDialog(FramelessWindow):
         saved_target_lang = config.get_app_setting("translation_target_lang", "")
         self.target_lang = saved_target_lang or target_lang or "ZH"
         self._is_on_top = TranslationDialog._stay_on_top
+        self._mode = "translate"  # "translate" 或 "summary"
 
         self.setObjectName("dashboardWindow")
-        self.setWindowTitle("jietuba")
+        self.setWindowTitle(_tr("Screenshot Translate"))
         self.setMinimumSize(self.MINIMUM_WIDTH, self.MINIMUM_HEIGHT)
         self.resize(self.DEFAULT_WIDTH, self.DEFAULT_HEIGHT)
         self.setFont(QFont("Microsoft YaHei UI", 10))
@@ -550,7 +582,10 @@ class TranslationDialog(FramelessWindow):
             return
         source_lang = str(self.source_language.currentData())
         target_lang = str(self.target_language.currentData())
-        self.set_loading()
+        if self._mode == "summary":
+            self.set_summary_loading()
+        else:
+            self.set_loading()
         self.translate_requested.emit(text, source_lang, target_lang)
 
     def _update_count(self) -> None:
@@ -570,21 +605,36 @@ class TranslationDialog(FramelessWindow):
         self._update_pin_tooltip()
         self.swap_button.setToolTip(_tr("Swap languages"))
         self.source_edit.setPlaceholderText(self._source_placeholder())
-        self.target_edit.setPlaceholderText(_tr("Translation will appear here..."))
+        self.target_edit.setPlaceholderText(
+            _tr("Summary will appear here")
+            if self._mode == "summary"
+            else _tr("Translation will appear here...")
+        )
         self.copy_source_button.set_tooltip(_tr("Copy Original"))
         self.clear_source_button.set_tooltip(_tr("Clear Original"))
-        self.copy_target_button.set_tooltip(_tr("Copy Translation"))
+        self.copy_target_button.set_tooltip(
+            _tr("Copy Summary") if self._mode == "summary" else _tr("Copy Translation")
+        )
         self.source_language.setItemText(0, _tr("Auto Detect"))
         self.translate_button.retranslate(not self.translate_button.isEnabled())
         self._update_count()
         if not getattr(self, "_backend_configured", False):
-            self.dashboard_title_bar.backend_badge.setText(_tr("Engine not configured"))
-        if self.target_edit.property("loading"):
-            self.target_edit.setPlainText(_tr("Translating..."))
-        elif self.target_edit.property("error") and hasattr(self, "_last_error_message"):
-            self.target_edit.setPlainText(
-                f'{_tr("Translation failed:")} {self._last_error_message}'
+            self.dashboard_title_bar.backend_badge.setText(
+                _tr("LLM not configured")
+                if self._mode == "summary"
+                else _tr("Engine not configured")
             )
+        if self.target_edit.property("loading"):
+            self.target_edit.setPlainText(
+                _tr("Summarizing...") if self._mode == "summary" else _tr("Translating...")
+            )
+        elif self.target_edit.property("error") and hasattr(self, "_last_error_message"):
+            prefix = (
+                _tr("Summary failed:")
+                if self._mode == "summary"
+                else _tr("Translation failed:")
+            )
+            self.target_edit.setPlainText(f"{prefix} {self._last_error_message}")
 
     def _on_target_lang_changed(self, _index: int) -> None:
         target_lang = self.get_target_lang()
@@ -655,6 +705,53 @@ class TranslationDialog(FramelessWindow):
         self.translate_button.setDisabled(busy)
         self.translate_button.retranslate(busy)
 
+    # ── 总结模式 ──────────────────────────────────────────
+    def set_mode(self, mode: str) -> None:
+        """切换弹窗语义：'translate'（默认翻译）或 'summary'（总结）。
+
+        总结模式下复用同一套 UI，把「译文区」当作「总结区」，并隐藏
+        无意义的源语言选择 / 语言交换，底部按钮文案改为「总结」。
+        """
+        if mode not in ("translate", "summary"):
+            mode = "translate"
+        changed = self._mode != mode
+        self._mode = mode
+
+        # 源语言选择 + 交换按钮在总结模式无意义（没有「源语 → 目标语」概念）
+        summary = mode == "summary"
+        self.source_language.setVisible(not summary)
+        self.swap_button.setVisible(not summary)
+
+        # 标题栏 logo 与标题在 翻译 / 总结 之间切换
+        if summary:
+            self.dashboard_title_bar.set_logo("总结.svg", _tr("Summary"))
+            self.dashboard_title_bar.app_name.setText(_tr("Screenshot Summary"))
+            self.setWindowTitle(_tr("Screenshot Summary"))
+        else:
+            self.dashboard_title_bar.set_logo("翻译.svg", _tr("Translation"))
+            self.dashboard_title_bar.app_name.setText(_tr("Screenshot Translate"))
+            self.setWindowTitle(_tr("Screenshot Translate"))
+
+        self.translate_button.set_mode(mode)
+        if changed:
+            self._retranslate_ui()
+
+    def set_summary_loading(self) -> None:
+        self._set_target_state(error=False, loading=True)
+        self.target_edit.setPlainText(_tr("Summarizing..."))
+        self.set_busy(True)
+
+    def set_summary_result(self, summary_text: str) -> None:
+        self._set_target_state(error=False, loading=False)
+        self.target_edit.setPlainText(summary_text)
+        self.set_busy(False)
+
+    def set_summary_error(self, error_msg: str) -> None:
+        self._last_error_message = error_msg
+        self._set_target_state(error=True, loading=False)
+        self.target_edit.setPlainText(f'{_tr("Summary failed:")} {error_msg}')
+        self.set_busy(False)
+
     def on_translation_finished(
         self,
         success: bool,
@@ -694,6 +791,13 @@ class TranslationDialog(FramelessWindow):
         badge.setProperty("configured", configured)
         badge.style().unpolish(badge)
         badge.style().polish(badge)
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        """ESC 关闭弹窗（翻译 / 总结通用）。"""
+        if event.key() == Qt.Key.Key_Escape:
+            self.close()
+            return
+        super().keyPressEvent(event)
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)

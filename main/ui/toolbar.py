@@ -124,6 +124,7 @@ class Toolbar(QWidget):
     redo_clicked = Signal()  # 重做
     long_screenshot_clicked = Signal()  # 长截图按钮
     screenshot_translate_clicked = Signal()  # 截图翻译按钮
+    screenshot_summary_clicked = Signal()  # 截图总结按钮（OCR + 大模型总结）
     ocr_copy_clicked = Signal()  # OCR 复制按钮（识别文字到剪贴板）
     gif_record_clicked = Signal()  # GIF录制按钮
     color_changed = Signal(QColor)  # 颜色改变
@@ -232,7 +233,16 @@ class Toolbar(QWidget):
         self.screenshot_translate_btn.setIconSize(QSize(icon_wide, icon_wide))
         self.screenshot_translate_btn.clicked.connect(self.screenshot_translate_clicked.emit)
         left_x += wide_w
-        
+
+        # 1.55 截图总结按钮（翻译按钮右侧）—— OCR 识别后用大模型总结
+        self.screenshot_summary_btn = QPushButton(self)
+        self.screenshot_summary_btn.setGeometry(left_x, 0, wide_w, btn_height)
+        self.screenshot_summary_btn.setToolTip(self.tr('截图总结(OCR+AI总结)'))
+        self.screenshot_summary_btn.setIcon(cached_icon("svg/总结.svg"))
+        self.screenshot_summary_btn.setIconSize(QSize(icon_wide, icon_wide))
+        self.screenshot_summary_btn.clicked.connect(self.screenshot_summary_clicked.emit)
+        left_x += wide_w
+
         # GIF 录制按钮
         self.gif_btn = QPushButton(self)
         self.gif_btn.setGeometry(left_x, 0, wide_w, btn_height)

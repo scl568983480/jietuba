@@ -316,6 +316,10 @@ Replace it?</source>
         <translation>截图翻译</translation>
     </message>
     <message>
+        <source>Screenshot Summary</source>
+        <translation>截图总结</translation>
+    </message>
+    <message>
         <source>OCR Copy</source>
         <translation>OCR 复制</translation>
     </message>
@@ -1332,6 +1336,55 @@ Replace it?</source>
     <message>
         <source>Target</source>
         <translation>目标语言</translation>
+    </message>
+    <!-- 总结模式 -->
+    <message>
+        <source>Screenshot Translate</source>
+        <translation>截图翻译</translation>
+    </message>
+    <message>
+        <source>Screenshot Summary</source>
+        <translation>截图总结</translation>
+    </message>
+    <message>
+        <source>Summarize</source>
+        <translation>总结</translation>
+    </message>
+    <message>
+        <source>Summarizing...</source>
+        <translation>正在总结...</translation>
+    </message>
+    <message>
+        <source>Summarize text</source>
+        <translation>总结文本</translation>
+    </message>
+    <message>
+        <source>Summary will appear here</source>
+        <translation>总结结果将显示在这里</translation>
+    </message>
+    <message>
+        <source>Copy Summary</source>
+        <translation>复制总结</translation>
+    </message>
+    <message>
+        <source>LLM not configured</source>
+        <translation>未配置大模型</translation>
+    </message>
+    <message>
+        <source>Summary failed:</source>
+        <translation>总结失败:</translation>
+    </message>
+    <message>
+        <source>No text to summarize</source>
+        <translation>没有可总结的文本</translation>
+    </message>
+    <message>
+        <source>Summary</source>
+        <translation>总结</translation>
+    </message>
+    <message>
+        <source>Recognizing...</source>
+        <translation>识别中...</translation>
     </message>
 </context>
 

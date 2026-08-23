@@ -151,6 +151,7 @@ class ToolSettingsManager(QObject):
         "inapp_zoom_out": "pagedown",          # 放大镜缩小
         "inapp_translate": "shift+c",          # 截图翻译
         "inapp_ocr_copy": "ctrl+c",            # OCR 复制（识别文字到剪贴板）
+        "inapp_summary": "ctrl+v",             # 截图总结（OCR + 大模型总结）
         "inapp_cursor_move_mode": "both",      # 鼠标微移模式: both / arrows / wasd
         # ==================== 2. 截图 ====================
         # 智能选择
@@ -226,6 +227,7 @@ class ToolSettingsManager(QObject):
         "azure_translate_region": "",
         "azure_translate_endpoint": "",
         "translation_target_lang": "",         # 翻译目标语言（空为跟随系统语言）
+        "summary_target_lang": "",             # 总结目标语言（空为跟随翻译目标语言）
         "translation_split_sentences": True,   # 自动分句
         "translation_preserve_formatting": True,  # 保留格式
 
@@ -1037,6 +1039,17 @@ class ToolSettingsManager(QObject):
     def set_translation_target_lang(self, value: str):
         """设置翻译目标语言"""
         self.qsettings.setValue("app/translation_target_lang", value)
+
+    def get_summary_target_lang(self) -> str:
+        """获取总结目标语言，未单独设置时跟随翻译目标语言。"""
+        saved = self.get_app_setting("summary_target_lang", "")
+        if saved:
+            return saved
+        return self.get_translation_target_lang()
+
+    def set_summary_target_lang(self, value: str):
+        """设置总结目标语言（与翻译目标语言相互独立记忆）"""
+        self.set_app_setting("summary_target_lang", value)
     
     def get_translation_split_sentences(self) -> bool:
         """获取是否启用自动分句"""

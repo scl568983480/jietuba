@@ -55,6 +55,7 @@ class TranslationManager(QObject):
         self._request_targets = {}
         self._active_target = "dialog"
         self._target_lang = "ZH"
+        self._summary_mode = False  # 当前弹窗是否处于「总结」模式
         self._api_key = ""
         self._use_pro = False
         self._legacy_provider_override = False
@@ -526,7 +527,73 @@ class TranslationManager(QObject):
         )
         thread.finished.connect(lambda t=thread: self._release_thread(t))
         thread.start()
-    
+
+    def _summary_ready(self) -> bool:
+        """检查总结所用的大模型（OpenAI 兼容接口）是否已配置。"""
+        from settings import get_tool_settings_manager
+
+        mgr = get_tool_settings_manager()
+        return bool(
+            mgr.get_openapi_url()
+            and mgr.get_openapi_api_key()
+            and mgr.get_openapi_model()
+        )
+
+    def _summary_backend_name(self) -> str:
+        """总结模式下角标展示的大模型名称。"""
+        from settings import get_tool_settings_manager
+
+        mgr = get_tool_settings_manager()
+        model = mgr.get_openapi_model()
+        return model or self.tr("LLM not configured")
+
+    def _start_summary(self, text: str, target_lang: str):
+        """OCR 完成后调用大模型总结（复用翻译弹窗结果区）。"""
+        from settings import get_tool_settings_manager
+        from summary import SummaryLLMWorker, build_summary_prompt
+
+        mgr = get_tool_settings_manager()
+        system_prompt = build_summary_prompt(target_lang)
+        self._request_token += 1
+        token = self._request_token
+        self._request_targets[token] = "dialog"
+        worker = SummaryLLMWorker(
+            api_url=mgr.get_openapi_url(),
+            api_key=mgr.get_openapi_api_key(),
+            model=mgr.get_openapi_model(),
+            system_prompt=system_prompt,
+            user_text=text,
+        )
+        self._thread = worker
+        self._threads.add(worker)
+        worker.finished_signal.connect(
+            lambda ok, content, t=worker, n=token: self._on_summary_thread_result(
+                t, n, ok, content
+            )
+        )
+        worker.finished.connect(lambda t=worker: self._release_thread(t))
+        worker.start()
+
+    def _on_summary_thread_result(
+        self, thread, token: int, success: bool, content: str
+    ):
+        """丢弃被新请求替代的总结结果，仅处理最新一次请求。"""
+        if token != self._request_token or thread is not self._thread:
+            self._request_targets.pop(token, None)
+            log_debug("忽略已被新请求替代的总结结果", "Translation")
+            return
+        self._request_targets.pop(token, None)
+        self._on_summary_finished(success, content)
+
+    def _on_summary_finished(self, success: bool, content: str):
+        """将总结结果写入弹窗（成功=结果，失败=错误信息）。"""
+        if not self._is_dialog_valid():
+            return
+        if success:
+            self._dialog.set_summary_result(content)
+        else:
+            self._dialog.set_summary_error(content)
+
     def _stop_current_thread(self):
         """Invalidate the active request without blocking the GUI thread."""
         old_token = self._request_token
@@ -585,23 +652,39 @@ class TranslationManager(QObject):
         
 
     def _on_translate_requested(self, text: str, source_lang: str, target_lang: str):
-        """处理翻译请求（来自翻译窗口的翻译按钮）"""
+        """处理请求（来自弹窗底部按钮，翻译模式=翻译 / 总结模式=总结）"""
         self._activate_surface("dialog")
-        if not self._backend_ready():
+        if (self._summary_mode and not self._summary_ready()) or (
+            not self._summary_mode and not self._backend_ready()
+        ):
             if self._is_dialog_valid():
-                self._dialog.set_translation_error(self._api_key_error())
+                if self._summary_mode:
+                    self._dialog.set_summary_error(self.tr("LLM not configured"))
+                else:
+                    self._dialog.set_translation_error(self._api_key_error())
             return
-        
+
         if not text or not text.strip():
             if self._is_dialog_valid():
-                self._dialog.set_translation_error(self.tr("Please enter text to translate"))
+                if self._summary_mode:
+                    self._dialog.set_summary_error(self.tr("No text to summarize"))
+                else:
+                    self._dialog.set_translation_error(self.tr("Please enter text to translate"))
             return
-        
-        log_debug(f"翻译请求: -> {target_lang}", "Translation")
-        
+
+        log_debug(
+            f"{'总结' if self._summary_mode else '翻译'}请求: -> {target_lang}",
+            "Translation",
+        )
+
         # 停止当前线程
         self._stop_current_thread()
-        
+
+        if self._summary_mode:
+            # 总结模式：重新调用大模型总结
+            self._start_summary(text, target_lang)
+            return
+
         # 启动翻译
         self._start_translation(
             text=text,
@@ -699,11 +782,14 @@ class TranslationManager(QObject):
             self._use_pro = use_pro
         self._split_sentences = split_sentences
         self._preserve_formatting = preserve_formatting
-        
+
+        # 翻译模式：确保弹窗处于翻译语义（避免复用上次总结的弹窗）
+        self._summary_mode = False
+
         # 保存目标语言和pixmap供OCR完成后使用
         self._pending_target_lang = target_lang
         self._pending_pixmap = pixmap
-        
+
         log_info("截图翻译模式：显示窗口并启动OCR", "Translation")
         
         # 1. 显示翻译窗口（原文区显示"识别中..."）
@@ -718,10 +804,59 @@ class TranslationManager(QObject):
         if self._is_dialog_valid():
             self._dialog.source_edit.setPlainText(self._dialog.tr("Recognizing..."))
             self._dialog.source_edit.setEnabled(False)  # OCR识别期间禁用编辑
-        
+
         # 2. 启动OCR线程
         self._start_ocr_thread(pixmap)
-    
+
+    def summarize_from_image(
+        self,
+        pixmap,
+        target_lang: str = None,
+    ):
+        """
+        从图片进行OCR识别后，用大模型总结（复用翻译弹窗展示结果）。
+
+        流程与截图翻译一致，区别在 OCR 完成后调用大模型总结，
+        结果填入翻译弹窗的「译文区」（总结模式下视为总结区）。
+        """
+        from settings import get_tool_settings_manager
+        from PySide6.QtGui import QPixmap
+
+        if target_lang is None:
+            target_lang = get_tool_settings_manager().get_summary_target_lang() or "ZH"
+
+        # 进入总结模式：复用同一弹窗，但语义切到「总结」
+        self._summary_mode = True
+        self._stop_current_thread()
+        self._activate_surface("dialog")
+
+        # 1. 显示翻译弹窗（进入总结模式）
+        self._ensure_dialog(
+            text="",  # 初始为空
+            position=None,
+            source_lang="auto",
+            target_lang=target_lang,
+        )
+        if self._is_dialog_valid():
+            self._dialog.set_mode("summary")
+            self._dialog.set_backend_badge(
+                self._summary_backend_name(), self._summary_ready()
+            )
+
+        # 未配置大模型时直接报错
+        if not self._summary_ready():
+            if self._is_dialog_valid():
+                self._dialog.set_summary_error(self.tr("LLM not configured"))
+            return
+
+        # 2. 原文区先显示「识别中...」
+        if self._is_dialog_valid():
+            self._dialog.source_edit.setPlainText(self._dialog.tr("Recognizing..."))
+            self._dialog.source_edit.setEnabled(False)
+
+        # 3. 启动OCR线程，完成后回调里分流到总结
+        self._start_ocr_thread(pixmap)
+
     def _start_ocr_thread(self, pixmap):
         """启动OCR识别线程
         
@@ -818,15 +953,22 @@ class TranslationManager(QObject):
             # 填入识别的文本
             self._dialog.source_edit.setPlainText(result)
             log_info(f"OCR识别成功: {result[:50]}...", "Translation")
-            
-            # 自动开始翻译
+
             target_lang = getattr(self, '_pending_target_lang', "ZH")
-            self._start_translation(
-                text=result,
-                target_lang=self._dialog.get_target_lang() or target_lang,
-                source_lang="auto",
-                result_target="dialog",
-            )
+            if self._summary_mode:
+                # 总结模式：OCR 完成后调用大模型总结
+                self._start_summary(
+                    text=result,
+                    target_lang=self._dialog.get_target_lang() or target_lang,
+                )
+            else:
+                # 自动开始翻译
+                self._start_translation(
+                    text=result,
+                    target_lang=self._dialog.get_target_lang() or target_lang,
+                    source_lang="auto",
+                    result_target="dialog",
+                )
         else:
             # 显示错误信息
             self._dialog.source_edit.setPlainText("")

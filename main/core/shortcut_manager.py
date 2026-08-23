@@ -646,7 +646,7 @@ def load_inapp_bindings(keys_of_interest: Optional[List[str]] = None) -> Dict:
             "inapp_delete",
             "inapp_copy_pin", "inapp_thumbnail", "inapp_toggle_toolbar",
             "inapp_zoom_in", "inapp_zoom_out", "inapp_translate",
-            "inapp_ocr_copy",
+            "inapp_ocr_copy", "inapp_summary",
         ]
 
     result = {}

@@ -27,6 +27,7 @@ SCREENSHOT_KEYS = [
     ("inapp_zoom_out",  "Magnifier Zoom Out",     "pagedown"),
     ("inapp_translate", "Screenshot Translate",    "shift+c"),
     ("inapp_ocr_copy",  "OCR Copy",               "ctrl+c"),
+    ("inapp_summary",   "Screenshot Summary",      "ctrl+v"),
 ]
 
 PIN_KEYS = [

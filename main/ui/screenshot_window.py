@@ -40,7 +40,7 @@ class ScreenshotShortcutHandler(ShortcutHandler):
             "inapp_confirm", "inapp_pin", "inapp_undo", "inapp_redo",
             "inapp_delete",
             "inapp_zoom_in", "inapp_zoom_out", "inapp_translate",
-            "inapp_ocr_copy",
+            "inapp_ocr_copy", "inapp_summary",
         ])
         self._move_keys = load_move_keys()
 
@@ -76,14 +76,25 @@ class ScreenshotShortcutHandler(ShortcutHandler):
         # 否则像 OCR 复制（默认 ctrl+c）这类与文本编辑键冲突的快捷键会被直接吞掉，
         # 导致「其它应用内快捷键都正常、唯独 OCR 复制失效」。
         if is_text_editing:
+            ekey = event.key()
+            emods = event.modifiers()
+            # 编辑文本时，原生复制/粘贴/剪切/撤销/重做/钉图等（ctrl+v 等）
+            # 必须直达文本控件，不被总结(ctrl+v)/OCR复制(ctrl+c)等快捷键拦截，
+            # 否则在画布上输入文字时无法粘贴/复制。
+            if (emods == Qt.KeyboardModifier.ControlModifier
+                    and ekey in (
+                        Qt.Key.Key_V, Qt.Key.Key_C, Qt.Key.Key_X,
+                        Qt.Key.Key_Z, Qt.Key.Key_Y, Qt.Key.Key_D,
+                    )):
+                return False
             matched = any(self._match(event, k) for k in self._bindings)
             if not matched:
-                if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                if ekey in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
                     return False
-                if event.key() in (Qt.Key.Key_C, Qt.Key.Key_D):
+                if ekey in (Qt.Key.Key_C, Qt.Key.Key_D):
                     return False
-                if (event.key() in (Qt.Key.Key_Z, Qt.Key.Key_Y)
-                        and event.modifiers() == Qt.KeyboardModifier.ControlModifier):
+                if (ekey in (Qt.Key.Key_Z, Qt.Key.Key_Y)
+                        and emods == Qt.KeyboardModifier.ControlModifier):
                     return False
 
         # ── 鼠标微移 ──
@@ -142,6 +153,13 @@ class ScreenshotShortcutHandler(ShortcutHandler):
             if w.scene and w.scene.selection_model.is_confirmed:
                 w.action_handler.handle_ocr_copy()
             return True
+
+        # 截图总结
+        if self._match(event, "inapp_summary"):
+            if w.scene and w.scene.selection_model.is_confirmed:
+                if hasattr(w, 'toolbar') and w.toolbar:
+                    w.toolbar.screenshot_summary_clicked.emit()
+                return True
 
         # 取色（单键 P，无修饰键 — 保留硬编码）
         if event.key() == Qt.Key.Key_P:
@@ -564,6 +582,7 @@ class ScreenshotWindow(QWidget):
         self.toolbar.long_screenshot_clicked.connect(self.start_long_screenshot_mode)
         self.toolbar.screenshot_translate_clicked.connect(self._handle_screenshot_translate)
         self.toolbar.ocr_copy_clicked.connect(self._handle_ocr_copy)
+        self.toolbar.screenshot_summary_clicked.connect(self._handle_screenshot_summary)
         self.toolbar.gif_record_clicked.connect(self.start_gif_record_mode)
 
     def _connect_session_signals(self):
@@ -601,6 +620,10 @@ class ScreenshotWindow(QWidget):
     def _handle_screenshot_translate(self):
         if self.action_handler:
             self.action_handler.handle_screenshot_translate()
+
+    def _handle_screenshot_summary(self):
+        if self.action_handler:
+            self.action_handler.handle_screenshot_summary()
 
     def _handle_ocr_copy(self):
         if self.action_handler:
