@@ -6,7 +6,7 @@ import sys
 from PySide6.QtCore import Qt, QSize, Signal, QRect, QRectF, QPoint
 from PySide6.QtGui import QIcon, QColor, QCursor, QFont, QPainter, QPainterPath, QPen, QBrush
 from PySide6.QtWidgets import (
-    QWidget, QPushButton, QSlider, QLabel, 
+    QWidget, QPushButton, QSlider, QLabel, QHBoxLayout,
     QApplication, QColorDialog
 )
 from core.resource_manager import ResourceManager
@@ -76,6 +76,24 @@ class _DragHandle(QWidget):
 
         painter.end()
 
+class _ToolFlyout(QWidget):
+    """「绘图」二级工具栏容器 —— 圆角白底 + 主题色描边，与工具栏风格一致。"""
+
+    @safe_event
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        radius = 6.0
+        pen_width = 2.0
+        half = pen_width / 2
+        rect = QRectF(self.rect()).adjusted(half, half, -half, -half)
+        path = QPainterPath()
+        path.addRoundedRect(rect, radius, radius)
+        painter.setPen(QPen(get_theme().theme_color, pen_width))
+        painter.setBrush(QBrush(QColor(255, 255, 255)))
+        painter.drawPath(path)
+        painter.end()
+
 def resource_path(relative_path):
     """获取资源文件路径（兼容函数）"""
     return ResourceManager.get_resource_path(relative_path)
@@ -126,15 +144,23 @@ class Toolbar(QWidget):
     # 画笔工具专用信号
     line_style_changed = Signal(str)  # 线条样式改变(solid/dashed)
     
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, use_drawing_flyout=True):
         super().__init__(parent)  # 使用父窗口（如果有）
-        
+
+        # 绘图二级工具栏开关：截图模式开启（9 个工具收进「绘图」下拉）；
+        # 钉图 / 预加载场景保持原横排布局（关闭）
+        self.use_drawing_flyout = use_drawing_flyout
+
+        # 主工具栏相对选区的方向：True=在选区下方，False=在选区上方。
+        # 由 position_near_rect 更新，二级工具栏/面板据此确认弹出方向。
+        self._toolbar_below_selection = True
+
         # 当前选中的工具
         self.current_tool = None  # 初始无工具选中，用户点击后才激活
-        
+
         # 当前颜色
         self.current_color = QColor(255, 0, 0)  # 默认红色
-        
+
         self.init_ui()
         
     def init_ui(self):
@@ -235,104 +261,133 @@ class Toolbar(QWidget):
         self.copy_btn.hide()  # 截图模式下隐藏，只在钉图模式显示
         # left_x += wide_w  # 不增加位置，因为隐藏了
         
-        # 3. 画笔工具
-        self.pen_btn = QPushButton(self)
-        self.pen_btn.setGeometry(left_x, 0, btn_width, btn_height)
-        self.pen_btn.setToolTip(self.tr('Pen tool (hold Shift for straight line)'))
-        self.pen_btn.setIcon(cached_icon("svg/画笔.svg"))
-        self.pen_btn.setIconSize(QSize(icon_tool, icon_tool))
-        self.pen_btn.setCheckable(True)
-        self.pen_btn.setChecked(False)  # 默认不选中，因为默认是 cursor 模式
-        self.pen_btn.clicked.connect(lambda: self._on_tool_clicked("pen"))
-        left_x += btn_width
-        
-        # 4. 荧光笔工具
-        self.highlighter_btn = QPushButton(self)
-        self.highlighter_btn.setGeometry(left_x, 0, btn_width, btn_height)
-        self.highlighter_btn.setToolTip(self.tr('Highlighter (hold Shift for straight line)'))
-        self.highlighter_btn.setIcon(cached_icon("svg/荧光笔.svg"))
-        self.highlighter_btn.setIconSize(QSize(icon_tool, icon_tool))
-        self.highlighter_btn.setCheckable(True)
-        self.highlighter_btn.clicked.connect(lambda: self._on_tool_clicked("highlighter"))
-        left_x += btn_width
-        
-        # 5. 箭头工具
-        self.arrow_btn = QPushButton(self)
-        self.arrow_btn.setGeometry(left_x, 0, btn_width, btn_height)
-        self.arrow_btn.setToolTip(self.tr('Draw arrow'))
-        self.arrow_btn.setIcon(cached_icon("svg/箭头.svg"))
-        self.arrow_btn.setIconSize(QSize(icon_tool, icon_tool))
-        self.arrow_btn.setCheckable(True)
-        self.arrow_btn.clicked.connect(lambda: self._on_tool_clicked("arrow"))
-        left_x += btn_width
-        
-        # 6. 序号工具
-        self.number_btn = QPushButton(self)
-        self.number_btn.setGeometry(left_x, 0, btn_width, btn_height)
-        self.number_btn.setToolTip(self.tr('Number (Shift+scroll to change number)'))
-        self.number_btn.setIcon(cached_icon("svg/序号.svg"))
-        self.number_btn.setIconSize(QSize(icon_tool, icon_tool))
-        self.number_btn.setCheckable(True)
-        self.number_btn.clicked.connect(lambda: self._on_tool_clicked("number"))
-        left_x += btn_width
-        
-        # 7. 矩形工具
-        self.rect_btn = QPushButton(self)
-        self.rect_btn.setGeometry(left_x, 0, btn_width, btn_height)
-        self.rect_btn.setToolTip(self.tr('Draw rectangle'))
-        self.rect_btn.setIcon(cached_icon("svg/方框.svg"))
-        self.rect_btn.setIconSize(QSize(icon_tool, icon_tool))
-        self.rect_btn.setCheckable(True)
-        self.rect_btn.clicked.connect(lambda: self._on_tool_clicked("rect"))
-        left_x += btn_width
-        
-        # 8. 圆形工具
-        self.ellipse_btn = QPushButton(self)
-        self.ellipse_btn.setGeometry(left_x, 0, btn_width, btn_height)
-        self.ellipse_btn.setToolTip(self.tr('Draw ellipse'))
-        self.ellipse_btn.setIcon(cached_icon("svg/圆框.svg"))
-        self.ellipse_btn.setIconSize(QSize(icon_tool, icon_tool))
-        self.ellipse_btn.setCheckable(True)
-        self.ellipse_btn.clicked.connect(lambda: self._on_tool_clicked("ellipse"))
-        left_x += btn_width
-        
-        # 9. 文字工具
-        self.text_btn = QPushButton(self)
-        self.text_btn.setGeometry(left_x, 0, btn_width, btn_height)
-        self.text_btn.setToolTip(self.tr('Add text'))
-        self.text_btn.setIcon(cached_icon("svg/文字.svg"))
-        self.text_btn.setIconSize(QSize(icon_tool, icon_tool))
-        self.text_btn.setCheckable(True)
-        self.text_btn.clicked.connect(lambda: self._on_tool_clicked("text"))
-        left_x += btn_width
-        
-        # 10. 橡皮擦工具
-        self.eraser_btn = QPushButton(self)
-        self.eraser_btn.setGeometry(left_x, 0, btn_width, btn_height)
-        self.eraser_btn.setToolTip(self.tr('Eraser tool'))
-        self.eraser_btn.setIcon(cached_icon("svg/橡皮.svg"))
-        self.eraser_btn.setIconSize(QSize(icon_eraser, icon_eraser))
-        self.eraser_btn.setCheckable(True)
-        self.eraser_btn.clicked.connect(lambda: self._on_tool_clicked("eraser"))
-        left_x += btn_width
-        
-        # 11. 撤销按钮
-        self.undo_btn = QPushButton(self)
-        self.undo_btn.setGeometry(left_x, 0, btn_width, btn_height)
-        self.undo_btn.setToolTip(self.tr('Undo'))
-        self.undo_btn.setIcon(cached_icon("svg/撤回.svg"))
-        self.undo_btn.setIconSize(QSize(icon_tool, icon_tool))
-        self.undo_btn.clicked.connect(self.undo_clicked.emit)
-        left_x += btn_width
-        
-        # 12. 重做按钮
-        self.redo_btn = QPushButton(self)
-        self.redo_btn.setGeometry(left_x, 0, btn_width, btn_height)
-        self.redo_btn.setToolTip(self.tr('Redo'))
-        self.redo_btn.setIcon(cached_icon("svg/复原.svg"))
-        self.redo_btn.setIconSize(QSize(icon_tool, icon_tool))
-        self.redo_btn.clicked.connect(self.redo_clicked.emit)
-        left_x += btn_width
+        # ── 绘图工具收纳策略 ─────────────────────────────
+        if self.use_drawing_flyout:
+            # 截图模式：矩形保留独立按钮，「绘图」按钮展开二级工具栏
+            # （其余 9 个工具按钮在 _build_draw_flyout 中创建并收纳）
+            # 矩形工具（保留在主工具栏）
+            self.rect_btn = QPushButton(self)
+            self.rect_btn.setGeometry(left_x, 0, btn_width, btn_height)
+            self.rect_btn.setToolTip(self.tr('Draw rectangle'))
+            self.rect_btn.setIcon(cached_icon("svg/方框.svg"))
+            self.rect_btn.setIconSize(QSize(icon_tool, icon_tool))
+            self.rect_btn.setCheckable(True)
+            self.rect_btn.clicked.connect(lambda: self._on_tool_clicked("rect"))
+            left_x += btn_width
+
+            # 绘图按钮（展开二级工具栏）
+            self.draw_btn = QPushButton(self)
+            self.draw_btn.setGeometry(left_x, 0, btn_width, btn_height)
+            self.draw_btn.setToolTip(self.tr('Drawing tools'))
+            self.draw_btn.setIcon(cached_icon("svg/更多.svg"))
+            self.draw_btn.setIconSize(QSize(icon_tool, icon_tool))
+            self.draw_btn.setCheckable(True)
+            self.draw_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            self.draw_btn.clicked.connect(self._on_draw_btn_clicked)
+            left_x += btn_width
+
+            # 创建并收纳 9 个绘图工具按钮到二级工具栏
+            self._build_draw_flyout()
+        else:
+            # 钉图 / 预加载：保持原横排布局（所有工具直接排在主工具栏）
+            # 3. 画笔工具
+            self.pen_btn = QPushButton(self)
+            self.pen_btn.setGeometry(left_x, 0, btn_width, btn_height)
+            self.pen_btn.setToolTip(self.tr('Pen tool (hold Shift for straight line)'))
+            self.pen_btn.setIcon(cached_icon("svg/画笔.svg"))
+            self.pen_btn.setIconSize(QSize(icon_tool, icon_tool))
+            self.pen_btn.setCheckable(True)
+            self.pen_btn.setChecked(False)  # 默认不选中，因为默认是 cursor 模式
+            self.pen_btn.clicked.connect(lambda: self._on_tool_clicked("pen"))
+            left_x += btn_width
+
+            # 4. 荧光笔工具
+            self.highlighter_btn = QPushButton(self)
+            self.highlighter_btn.setGeometry(left_x, 0, btn_width, btn_height)
+            self.highlighter_btn.setToolTip(self.tr('Highlighter (hold Shift for straight line)'))
+            self.highlighter_btn.setIcon(cached_icon("svg/荧光笔.svg"))
+            self.highlighter_btn.setIconSize(QSize(icon_tool, icon_tool))
+            self.highlighter_btn.setCheckable(True)
+            self.highlighter_btn.clicked.connect(lambda: self._on_tool_clicked("highlighter"))
+            left_x += btn_width
+
+            # 5. 箭头工具
+            self.arrow_btn = QPushButton(self)
+            self.arrow_btn.setGeometry(left_x, 0, btn_width, btn_height)
+            self.arrow_btn.setToolTip(self.tr('Draw arrow'))
+            self.arrow_btn.setIcon(cached_icon("svg/箭头.svg"))
+            self.arrow_btn.setIconSize(QSize(icon_tool, icon_tool))
+            self.arrow_btn.setCheckable(True)
+            self.arrow_btn.clicked.connect(lambda: self._on_tool_clicked("arrow"))
+            left_x += btn_width
+
+            # 6. 序号工具
+            self.number_btn = QPushButton(self)
+            self.number_btn.setGeometry(left_x, 0, btn_width, btn_height)
+            self.number_btn.setToolTip(self.tr('Number (Shift+scroll to change number)'))
+            self.number_btn.setIcon(cached_icon("svg/序号.svg"))
+            self.number_btn.setIconSize(QSize(icon_tool, icon_tool))
+            self.number_btn.setCheckable(True)
+            self.number_btn.clicked.connect(lambda: self._on_tool_clicked("number"))
+            left_x += btn_width
+
+            # 7. 矩形工具
+            self.rect_btn = QPushButton(self)
+            self.rect_btn.setGeometry(left_x, 0, btn_width, btn_height)
+            self.rect_btn.setToolTip(self.tr('Draw rectangle'))
+            self.rect_btn.setIcon(cached_icon("svg/方框.svg"))
+            self.rect_btn.setIconSize(QSize(icon_tool, icon_tool))
+            self.rect_btn.setCheckable(True)
+            self.rect_btn.clicked.connect(lambda: self._on_tool_clicked("rect"))
+            left_x += btn_width
+
+            # 8. 圆形工具
+            self.ellipse_btn = QPushButton(self)
+            self.ellipse_btn.setGeometry(left_x, 0, btn_width, btn_height)
+            self.ellipse_btn.setToolTip(self.tr('Draw ellipse'))
+            self.ellipse_btn.setIcon(cached_icon("svg/圆框.svg"))
+            self.ellipse_btn.setIconSize(QSize(icon_tool, icon_tool))
+            self.ellipse_btn.setCheckable(True)
+            self.ellipse_btn.clicked.connect(lambda: self._on_tool_clicked("ellipse"))
+            left_x += btn_width
+
+            # 9. 文字工具
+            self.text_btn = QPushButton(self)
+            self.text_btn.setGeometry(left_x, 0, btn_width, btn_height)
+            self.text_btn.setToolTip(self.tr('Add text'))
+            self.text_btn.setIcon(cached_icon("svg/文字.svg"))
+            self.text_btn.setIconSize(QSize(icon_tool, icon_tool))
+            self.text_btn.setCheckable(True)
+            self.text_btn.clicked.connect(lambda: self._on_tool_clicked("text"))
+            left_x += btn_width
+
+            # 10. 橡皮擦工具
+            self.eraser_btn = QPushButton(self)
+            self.eraser_btn.setGeometry(left_x, 0, btn_width, btn_height)
+            self.eraser_btn.setToolTip(self.tr('Eraser tool'))
+            self.eraser_btn.setIcon(cached_icon("svg/橡皮.svg"))
+            self.eraser_btn.setIconSize(QSize(icon_eraser, icon_eraser))
+            self.eraser_btn.setCheckable(True)
+            self.eraser_btn.clicked.connect(lambda: self._on_tool_clicked("eraser"))
+            left_x += btn_width
+
+            # 11. 撤销按钮
+            self.undo_btn = QPushButton(self)
+            self.undo_btn.setGeometry(left_x, 0, btn_width, btn_height)
+            self.undo_btn.setToolTip(self.tr('Undo'))
+            self.undo_btn.setIcon(cached_icon("svg/撤回.svg"))
+            self.undo_btn.setIconSize(QSize(icon_tool, icon_tool))
+            self.undo_btn.clicked.connect(self.undo_clicked.emit)
+            left_x += btn_width
+
+            # 12. 重做按钮
+            self.redo_btn = QPushButton(self)
+            self.redo_btn.setGeometry(left_x, 0, btn_width, btn_height)
+            self.redo_btn.setToolTip(self.tr('Redo'))
+            self.redo_btn.setIcon(cached_icon("svg/复原.svg"))
+            self.redo_btn.setIconSize(QSize(icon_tool, icon_tool))
+            self.redo_btn.clicked.connect(self.redo_clicked.emit)
+            left_x += btn_width
         
         # 右侧按钮区域（结束截图 + 钉图 + 确定）
         right_buttons_width = wide_w * 3  # 结束截图 + 钉图 + 确定
@@ -570,6 +625,11 @@ class Toolbar(QWidget):
         self.current_tool = None
         # 隐藏所有二级面板
         self._hide_all_panels()
+        # 收起「绘图」二级工具栏
+        if getattr(self, 'use_drawing_flyout', False) and hasattr(self, 'draw_flyout'):
+            self.draw_flyout.hide()
+            if hasattr(self, 'draw_btn'):
+                self.draw_btn.setChecked(False)
         # 重置拖动定位
         self._manual_positioned = False
         self._dragging = False
@@ -577,8 +637,214 @@ class Toolbar(QWidget):
         # 隐藏自身（选区确认后再显示）
         self.hide()
     
+    # ========================================================================
+    # 「绘图」二级工具栏（弹出式）
+    # ========================================================================
+
+    def _build_draw_flyout(self):
+        """构建「绘图」二级工具栏（弹出式），收纳 9 个绘图工具。"""
+        s = self.SCALE
+        btn_w = round(45 * s)
+        btn_h = round(45 * s)
+        icon_tool = round(32 * s)
+        icon_eraser = round(28 * s)
+
+        parent = self.parent()
+        if parent is None:
+            flags = (Qt.WindowType.FramelessWindowHint |
+                     Qt.WindowType.WindowStaysOnTopHint |
+                     Qt.WindowType.Tool |
+                     Qt.WindowType.X11BypassWindowManagerHint)
+        else:
+            flags = Qt.WindowType.FramelessWindowHint
+
+        flyout = _ToolFlyout(parent)
+        flyout.setWindowFlags(flags)
+        if parent is None:
+            flyout.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        flyout.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        flyout.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        flyout.setObjectName("draw_flyout")
+
+        theme_hex = get_theme().theme_color_hex
+        tc = get_theme().theme_color
+        flyout.setStyleSheet(f"""
+            QWidget#draw_flyout {{ background-color: transparent; border: none; }}
+            QPushButton {{
+                background-color: rgba(0, 0, 0, 0.02);
+                border: none;
+                border-radius: 0px;
+                padding: 0px;
+            }}
+            QPushButton:hover {{ background-color: rgba(0, 0, 0, 0.08); }}
+            QPushButton:pressed {{ background-color: rgba(0, 0, 0, 0.15); }}
+            QPushButton:checked {{
+                background-color: rgba({tc.red()}, {tc.green()}, {tc.blue()}, 0.3);
+                border: 1px solid {theme_hex};
+            }}
+        """)
+
+        grid = QHBoxLayout(flyout)
+        # 上下边距为 0，使浮层高度 = 按钮高度 = 一级工具栏高度
+        grid.setContentsMargins(4, 0, 4, 0)
+        grid.setSpacing(2)
+
+        # 工具按钮（可选中）
+        tool_defs = [
+            ("pen_btn", "pen", "svg/画笔.svg",
+             self.tr('Pen tool (hold Shift for straight line)'), icon_tool),
+            ("highlighter_btn", "highlighter", "svg/荧光笔.svg",
+             self.tr('Highlighter (hold Shift for straight line)'), icon_tool),
+            ("arrow_btn", "arrow", "svg/箭头.svg",
+             self.tr('Draw arrow'), icon_tool),
+            ("number_btn", "number", "svg/序号.svg",
+             self.tr('Number (Shift+scroll to change number)'), icon_tool),
+            ("ellipse_btn", "ellipse", "svg/圆框.svg",
+             self.tr('Draw ellipse'), icon_tool),
+            ("text_btn", "text", "svg/文字.svg",
+             self.tr('Add text'), icon_tool),
+            ("eraser_btn", "eraser", "svg/橡皮.svg",
+             self.tr('Eraser tool'), icon_eraser),
+        ]
+        for attr, tid, icon, tip, ic in tool_defs:
+            btn = QPushButton(flyout)
+            btn.setIcon(cached_icon(icon))
+            btn.setIconSize(QSize(ic, ic))
+            btn.setToolTip(tip)
+            btn.setCheckable(True)
+            btn.setFixedSize(btn_w, btn_h)
+            btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            btn.clicked.connect(lambda _=None, t=tid: self._on_tool_clicked(t))
+            setattr(self, attr, btn)
+
+        # 撤销 / 重做（动作按钮，不可选中）
+        self.undo_btn = QPushButton(flyout)
+        self.undo_btn.setIcon(cached_icon("svg/撤回.svg"))
+        self.undo_btn.setIconSize(QSize(icon_tool, icon_tool))
+        self.undo_btn.setToolTip(self.tr('Undo'))
+        self.undo_btn.setFixedSize(btn_w, btn_h)
+        self.undo_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.undo_btn.clicked.connect(self.undo_clicked.emit)
+
+        self.redo_btn = QPushButton(flyout)
+        self.redo_btn.setIcon(cached_icon("svg/复原.svg"))
+        self.redo_btn.setIconSize(QSize(icon_tool, icon_tool))
+        self.redo_btn.setToolTip(self.tr('Redo'))
+        self.redo_btn.setFixedSize(btn_w, btn_h)
+        self.redo_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.redo_btn.clicked.connect(self.redo_clicked.emit)
+
+        flyout_buttons = [
+            self.pen_btn, self.highlighter_btn, self.arrow_btn,
+            self.number_btn, self.ellipse_btn, self.text_btn,
+            self.eraser_btn, self.undo_btn, self.redo_btn,
+        ]
+        for btn in flyout_buttons:
+            grid.addWidget(btn)
+
+        self.draw_flyout = flyout
+        self.draw_flyout.hide()
+
+    def _on_draw_btn_clicked(self):
+        """「绘图」按钮：切换二级工具栏的展开/收起。"""
+        if not getattr(self, 'use_drawing_flyout', False) or not hasattr(self, 'draw_flyout'):
+            return
+        if self.draw_flyout.isVisible():
+            self._hide_flyout(exit_drawing_mode=True)
+        else:
+            self._open_draw_flyout()
+
+    def _open_draw_flyout(self):
+        """展开二级工具栏，并与矩形面板互斥。"""
+        # 若矩形面板正展开，先收起它并取消矩形选中
+        if getattr(self, 'shape_panel', None) and self.shape_panel.isVisible():
+            self.shape_panel.hide()
+        if self.current_tool == "rect":
+            self.rect_btn.setChecked(False)
+            self.current_tool = None
+            self.tool_changed.emit("cursor")
+
+        # 展开前清除其它可能打开的面板
+        self._hide_all_panels()
+
+        self._position_flyout()
+        self.draw_flyout.show()
+        self.draw_flyout.raise_()
+        self.draw_btn.setChecked(True)
+        self.raise_()  # 工具栏保持在最上层
+
+    def _hide_flyout(self, exit_drawing_mode=False):
+        """收起二级工具栏。exit_drawing_mode=True 时一并退出绘图模式。"""
+        if hasattr(self, 'draw_flyout') and self.draw_flyout.isVisible():
+            self.draw_flyout.hide()
+        if hasattr(self, 'draw_btn'):
+            self.draw_btn.setChecked(False)
+        if exit_drawing_mode:
+            for btn in self.tool_buttons.values():
+                btn.setChecked(False)
+            self.current_tool = None
+            self.tool_changed.emit("cursor")
+            self._hide_all_panels()
+
+    def _position_flyout(self):
+        """将绘图二级工具栏定位到一级工具栏同侧，并与一级工具栏右侧对齐
+        （方向跟随一级工具栏相对选区的位置：一级在选区下方则二级在其下方，
+        一级在选区上方则二级在其上方；仅当越出屏幕时夹紧到屏幕内）。
+        """
+        if not hasattr(self, 'draw_flyout') or not hasattr(self, 'draw_btn'):
+            return
+
+        # 先按内容尺寸调整，确保后续读到正确的宽高（首次 show 之前 width/height 为 0）
+        self.draw_flyout.adjustSize()
+        fw = self.draw_flyout.width()
+        fh = self.draw_flyout.height()
+
+        # 以一级工具栏为参照（而非绘图按钮），实现右侧对齐
+        toolbar_global = self.mapToGlobal(QPoint(0, 0))
+        toolbar_h = self.height()
+        toolbar_right = toolbar_global.x() + self.width()
+
+        screen = QApplication.screenAt(toolbar_global)
+        if screen is None:
+            screen = QApplication.primaryScreen()
+        sr = screen.geometry()
+
+        gap = 5
+        # 与一级工具栏右侧对齐
+        x = toolbar_right - fw
+        if x < sr.left():
+            x = sr.left() + 5
+        if x + fw > sr.right():
+            x = sr.right() - fw - 5
+
+        below_y = toolbar_global.y() + toolbar_h + gap
+        above_y = toolbar_global.y() - fh - gap
+        # 关键：绘图工具栏相对主工具栏的方向，跟随主工具栏相对选区的方向
+        # （_toolbar_below_selection 由 position_near_rect 设置）
+        if self._toolbar_below_selection:
+            # 主工具栏在选区下方 → 绘图工具栏放在主工具栏下方
+            y = below_y
+        else:
+            # 主工具栏在选区上方 → 绘图工具栏放在主工具栏上方
+            y = above_y
+
+        # 越界则夹紧到屏幕内，避免跑出屏幕
+        y = max(sr.top(), min(y, sr.bottom() - fh))
+
+        final = QPoint(x, y)
+        if self.draw_flyout.parent():
+            final = self.draw_flyout.parent().mapFromGlobal(final)
+        self.draw_flyout.move(final)
+
     def _on_tool_clicked(self, tool_id: str):
         """工具按钮点击 - 支持再次点击取消"""
+        # 矩形工具与「绘图」二级工具栏互斥：展开二级工具栏时点击矩形，先收起二级工具栏
+        if (getattr(self, 'use_drawing_flyout', False)
+                and tool_id == "rect"
+                and getattr(self, 'draw_flyout', None)
+                and self.draw_flyout.isVisible()):
+            self._hide_flyout(exit_drawing_mode=True)
+
         # 如果点击的是当前工具，取消选中（退出绘制模式）
         if self.current_tool == tool_id:
             # 取消所有按钮选中
@@ -940,56 +1206,56 @@ class Toolbar(QWidget):
             self._sync_panel_position(self.number_panel)
         if hasattr(self, 'text_panel') and self.text_panel.isVisible():
             self._sync_panel_position(self.text_panel)
+        # 二级工具栏跟随主工具栏移动
+        if getattr(self, 'use_drawing_flyout', False) and hasattr(self, 'draw_flyout') and self.draw_flyout.isVisible():
+            self._position_flyout()
     
     def _sync_panel_position(self, panel):
         """同步单个面板的位置
-        
+
         优先跟一级工具栏同方向弹出（远离选区），空间不够时翻到另一侧。
+        当「绘图」二级工具栏展开时，参数面板改为锚定到二级工具栏，
+        跟随它显示在下方（而非一级工具栏下方）。
         """
         if not panel:
             return
-        
-        toolbar_global_pos = self.mapToGlobal(QPoint(0, 0))
+
+        # 「绘图」二级工具栏展开时，参数面板跟随二级工具栏（在其下方显示）
+        if (getattr(self, 'use_drawing_flyout', False)
+                and getattr(self, 'draw_flyout', None)
+                and self.draw_flyout.isVisible()):
+            anchor_global = self.draw_flyout.mapToGlobal(QPoint(0, 0))
+            anchor_h = self.draw_flyout.height()
+        else:
+            anchor_global = self.mapToGlobal(QPoint(0, 0))
+            anchor_h = self.height()
+
         gap = 5
         panel_h = panel.height()
-        toolbar_h = self.height()
-        
+
         # 获取屏幕信息
-        screen = QApplication.screenAt(toolbar_global_pos)
+        screen = QApplication.screenAt(anchor_global)
         if screen is None:
             screen = QApplication.primaryScreen()
         screen_rect = screen.geometry()
-        
-        # 两个候选位置
-        below_y = toolbar_global_pos.y() + toolbar_h + gap
-        above_y = toolbar_global_pos.y() - panel_h - gap
-        
-        below_ok = (below_y + panel_h <= screen_rect.bottom())
-        above_ok = (above_y >= screen_rect.top())
-        
-        toolbar_below = getattr(self, '_toolbar_below_selection', True)
-        
-        if toolbar_below:
-            # 工具栏在选区下方 → 优先下方，不行就上方
-            if below_ok:
-                panel_y = below_y
-            elif above_ok:
-                panel_y = above_y
-            else:
-                # 都放不下，夹紧到屏幕底部
-                panel_y = screen_rect.bottom() - panel_h
+
+        # 两个候选位置（基于锚定控件的位置与高度）
+        below_y = anchor_global.y() + anchor_h + gap
+        above_y = anchor_global.y() - panel_h - gap
+
+        # 面板方向跟随「主工具栏相对选区的方向」：一级在选区下方则面板在其下方，
+        # 一级在选区上方则面板在其上方（_toolbar_below_selection 由 position_near_rect 设置）。
+        # 注：绘图浮层展开时面板以浮层为锚点（上文已取其位置），此处逻辑对两种锚定都适用。
+        if self._toolbar_below_selection:
+            panel_y = below_y
         else:
-            # 工具栏在选区上方 → 优先上方，不行就下方
-            if above_ok:
-                panel_y = above_y
-            elif below_ok:
-                panel_y = below_y
-            else:
-                # 都放不下，夹紧到屏幕顶部
-                panel_y = screen_rect.top()
-        
-        # X 轴：与工具栏左对齐，夹紧在屏幕内
-        panel_x = toolbar_global_pos.x()
+            panel_y = above_y
+
+        # 越界则夹紧到屏幕内
+        panel_y = max(screen_rect.top(), min(screen_rect.bottom() - panel_h, panel_y))
+
+        # X 轴：与锚定控件左对齐，夹紧在屏幕内
+        panel_x = anchor_global.x()
         if panel_x + panel.width() > screen_rect.right():
             panel_x = screen_rect.right() - panel.width() - 5
         if panel_x < screen_rect.left():

@@ -2950,4 +2950,12 @@ SOFTWARE.</translation></message>
             <translation>OCR recognition failed</translation>
         </message>
     </context>
+
+    <context>
+        <name>MainApp</name>
+        <message>
+            <source>Jietuba Startup successful</source>
+            <translation>Jietuba Startup successful</translation>
+        </message>
+    </context>
 </TS>

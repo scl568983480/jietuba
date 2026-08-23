@@ -3019,4 +3019,12 @@ SOFTWARE.</translation></message>
             <translation>OCR 识别失败</translation>
         </message>
     </context>
+
+    <context>
+        <name>MainApp</name>
+        <message>
+            <source>Jietuba Startup successful</source>
+            <translation>截图吧启动成功，已就绪</translation>
+        </message>
+    </context>
 </TS>

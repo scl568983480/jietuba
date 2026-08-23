@@ -19,7 +19,7 @@ class PinToolbar(Toolbar):
     """
 
     def __init__(self, parent_pin_window=None, config_manager=None):
-        super().__init__(parent=None)
+        super().__init__(parent=None, use_drawing_flyout=False)
 
         self.parent_pin_window = parent_pin_window
         self.config_manager = config_manager

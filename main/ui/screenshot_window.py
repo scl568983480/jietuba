@@ -737,22 +737,37 @@ class ScreenshotWindow(QWidget):
         
         # 如果二级菜单可见，也更新其位置（但不重复调用 show_paint_menu）
         if hasattr(self.toolbar, 'paint_menu') and self.toolbar.paint_menu.isVisible():
-            # 直接更新二级菜单位置，不重新显示
-            toolbar_pos = self.toolbar.pos()
-            menu_x = toolbar_pos.x()
-            menu_y = toolbar_pos.y() + self.toolbar.height() + 5
-            
-            # 检查屏幕边界
-            screen = QApplication.screenAt(toolbar_pos)
+            # 「绘图」二级工具栏展开时，参数面板锚定到二级工具栏（跟随其下方）
+            tb = self.toolbar
+            if (getattr(tb, 'use_drawing_flyout', False)
+                    and getattr(tb, 'draw_flyout', None)
+                    and tb.draw_flyout.isVisible()):
+                anchor_pos = tb.draw_flyout.pos()
+                anchor_h = tb.draw_flyout.height()
+            else:
+                anchor_pos = tb.pos()
+                anchor_h = tb.height()
+
+            # 直接更新二级菜单位置，不重新显示。
+            # 方向依据锚定控件在屏幕上的实际位置：在屏幕上半→面板放其下方，下半→放上方。
+            screen = QApplication.screenAt(anchor_pos)
             if screen:
                 screen_rect = screen.geometry()
-                if menu_y + self.toolbar.paint_menu.height() > screen_rect.y() + screen_rect.height():
-                    menu_y = toolbar_pos.y() - self.toolbar.paint_menu.height() - 5
-                if menu_x + self.toolbar.paint_menu.width() > screen_rect.x() + screen_rect.width():
-                    menu_x = screen_rect.x() + screen_rect.width() - self.toolbar.paint_menu.width() - 5
-            
-            if self.toolbar.paint_menu.pos().x() != menu_x or self.toolbar.paint_menu.pos().y() != menu_y:
-                self.toolbar.paint_menu.move(menu_x, menu_y)
+                menu_below_y = anchor_pos.y() + anchor_h + 5
+                menu_above_y = anchor_pos.y() - tb.paint_menu.height() - 5
+                if menu_above_y >= screen_rect.top():
+                    menu_y = menu_above_y
+                elif menu_below_y + tb.paint_menu.height() <= screen_rect.bottom():
+                    menu_y = menu_below_y
+                else:
+                    menu_y = max(screen_rect.top(),
+                                 min(screen_rect.bottom() - tb.paint_menu.height(), menu_above_y))
+                menu_x = anchor_pos.x()
+                if menu_x + tb.paint_menu.width() > screen_rect.x() + screen_rect.width():
+                    menu_x = screen_rect.x() + screen_rect.width() - tb.paint_menu.width() - 5
+
+            if tb.paint_menu.pos().x() != menu_x or tb.paint_menu.pos().y() != menu_y:
+                tb.paint_menu.move(menu_x, menu_y)
     
     def cleanup_and_close(self):
         """结束当前截图会话 - 释放重数据，保留 UI 壳供下次复用。"""

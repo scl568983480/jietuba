@@ -175,7 +175,7 @@ class PreloadManager:
             from ui.toolbar import Toolbar
             dummy_parent = QWidget()
             dummy_parent.hide()
-            toolbar = Toolbar(dummy_parent)
+            toolbar = Toolbar(dummy_parent, use_drawing_flyout=False)
             toolbar.hide()
             toolbar.deleteLater()
             dummy_parent.deleteLater()
@@ -362,6 +362,8 @@ class PreloadManager:
                 self.app.update_hotkey()
                 self.app.setup_tray()
                 self.app._setup_pin_tray_updates()
+                # 向导关闭后再提示，避免被模态向导遮挡
+                self.app.show_startup_notification()
                 return
 
             # 非首次运行：预加载完成后再注册热键，避免启动预加载期间触发卡顿。
@@ -374,6 +376,9 @@ class PreloadManager:
                 self.app.open_settings()
             else:
                 self._preload_clipboard_window()
+
+            # 启动完成，弹出"启动成功"浮动提示
+            self.app.show_startup_notification()
         except Exception as e:
             log_exception(e, "启动时显示主界面")
         finally:

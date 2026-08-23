@@ -360,6 +360,23 @@ class MainApp(QObject):
         if reason == QSystemTrayIcon.ActivationReason.Trigger:
             self.start_screenshot()
 
+    def show_startup_notification(self):
+        """启动成功后，弹出一条应用内浮动提示（主线程调用）。
+
+        使用 core.toast 的浮动提示而非系统托盘通知：前者不依赖
+        Windows 通知中心/开始菜单快捷方式，便携单文件 exe 也能稳定显示。
+        """
+        try:
+            from core.toast import show_toast
+            show_toast(
+                self.tr(""),
+                self.tr("Jietuba Startup successful"),
+                duration_ms=2500,
+                icon="success",
+            )
+        except Exception as e:
+            log_exception(e, "显示启动提示")
+
     def _activate_blocking_modal(self) -> bool:
         """模态窗口存在时阻止创建无法交互的截图层。"""
         modal = QApplication.activeModalWidget()

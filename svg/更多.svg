@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 三个点省略号（更多）图标 —— 与工具栏其他工具图标一致的单色风格 -->
+<svg width="24px" height="24px" viewBox="0 0 24 24" fill="#212121" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="5" cy="12" r="2"/>
+  <circle cx="12" cy="12" r="2"/>
+  <circle cx="19" cy="12" r="2"/>
+</svg>
