@@ -15,6 +15,7 @@ class _FakeManager:
     def __init__(self):
         self.compact_calls = []
         self.input_calls = []
+        self.toast_calls = []
         self.full_calls = []
 
     def translate_compact(self, **kwargs):
@@ -25,6 +26,9 @@ class _FakeManager:
 
     def open_compact_input(self, **kwargs):
         self.input_calls.append(kwargs)
+
+    def show_unrecognized_toast(self, position=None):
+        self.toast_calls.append(position)
 
 
 class _FakeConfig:
@@ -63,7 +67,7 @@ def test_text_clipboard_item_routes_to_compact_popup(monkeypatch):
     assert manager.compact_calls[0]["position"] == QPoint(120, 80)
 
 
-def test_non_text_clipboard_item_routes_to_compact_input(monkeypatch):
+def test_non_text_clipboard_item_shows_recognize_toast(monkeypatch):
     controller, manager = _armed_controller(monkeypatch)
 
     controller.on_clipboard_item(
@@ -73,31 +77,32 @@ def test_non_text_clipboard_item_routes_to_compact_input(monkeypatch):
     assert not controller.probe_active
     assert manager.compact_calls == []
     assert manager.full_calls == []
-    assert manager.input_calls[0]["position"] == QPoint(120, 80)
+    assert manager.input_calls == []
+    assert manager.toast_calls == [QPoint(120, 80)]
 
 
-def test_empty_text_routes_to_compact_input(monkeypatch):
+def test_empty_text_shows_recognize_toast(monkeypatch):
     controller, manager = _armed_controller(monkeypatch)
 
     controller.on_clipboard_item(SimpleNamespace(content_type="text", content=" \n "))
 
     assert manager.compact_calls == []
-    assert len(manager.input_calls) == 1
+    assert len(manager.toast_calls) == 1
 
 
-def test_timeout_routes_only_current_probe_to_compact_input(monkeypatch):
+def test_timeout_routes_only_current_probe_to_recognize_toast(monkeypatch):
     controller, manager = _armed_controller(monkeypatch)
 
     controller._on_timeout(6)
-    assert manager.input_calls == []
+    assert manager.toast_calls == []
     assert controller.probe_active
 
     controller._on_timeout(7)
     assert not controller.probe_active
-    assert len(manager.input_calls) == 1
+    assert len(manager.toast_calls) == 1
 
 
-def test_copy_probe_uses_ctrl_insert_to_avoid_console_interrupt(monkeypatch):
+def test_copy_probe_uses_ctrl_c_to_copy_selection(monkeypatch):
     class FakeUser32:
         def __init__(self):
             self.events = []
@@ -114,33 +119,122 @@ def test_copy_probe_uses_ctrl_insert_to_avoid_console_interrupt(monkeypatch):
 
     SmartTranslationController()._send_copy_shortcut()
 
-    assert user32.events == [
+    # 先释放残留修饰键（Alt/Shift/Win），再发 Ctrl+C
+    expected = [
+        (smart_translation_controller_mod.VK_MENU, 0, smart_translation_controller_mod.KEYEVENTF_KEYUP, 0),
+        (smart_translation_controller_mod.VK_SHIFT, 0, smart_translation_controller_mod.KEYEVENTF_KEYUP, 0),
+        (smart_translation_controller_mod.VK_LWIN, 0, smart_translation_controller_mod.KEYEVENTF_KEYUP, 0),
+        (smart_translation_controller_mod.VK_RWIN, 0, smart_translation_controller_mod.KEYEVENTF_KEYUP, 0),
         (smart_translation_controller_mod.VK_CONTROL, 0, 0, 0),
-        (smart_translation_controller_mod.VK_INSERT, 0, 0, 0),
-        (
-            smart_translation_controller_mod.VK_INSERT,
-            0,
-            smart_translation_controller_mod.KEYEVENTF_KEYUP,
-            0,
-        ),
-        (
-            smart_translation_controller_mod.VK_CONTROL,
-            0,
-            smart_translation_controller_mod.KEYEVENTF_KEYUP,
-            0,
-        ),
+        (smart_translation_controller_mod.VK_C, 0, 0, 0),
+        (smart_translation_controller_mod.VK_C, 0, smart_translation_controller_mod.KEYEVENTF_KEYUP, 0),
+        (smart_translation_controller_mod.VK_CONTROL, 0, smart_translation_controller_mod.KEYEVENTF_KEYUP, 0),
     ]
+    assert user32.events == expected
 
 
-def test_disabled_clipboard_monitor_reads_current_text_once(monkeypatch, qapp):
+def test_wm_copy_sends_copy_message_to_focused_control(monkeypatch):
+    # 普通 Python 方法不支持设置 .restype/.argtypes，而真实 ctypes WinDLL 支持；
+    # 这里用可设置属性的可调用对象模拟 WinDLL 的窗口 API。
+    class Func:
+        def __init__(self, fn):
+            self._fn = fn
+        def __call__(self, *args, **kwargs):
+            return self._fn(*args, **kwargs)
+
+    class FakeUser32:
+        def __init__(self):
+            self.sent = []
+            self.focus = 0x100
+            self.fg = 0x200
+            self.GetForegroundWindow = Func(lambda: self.fg)
+            self.GetWindowThreadProcessId = Func(lambda h, u: 1234)
+            self.GetFocus = Func(lambda: self.focus)
+            self.AttachThreadInput = Func(lambda *a: True)
+            self.SendMessageTimeoutW = Func(
+                lambda hwnd, msg, w, l, f, t, res: (
+                    self.sent.append((hwnd, msg)) or 1
+                )
+            )
+
+    user32 = FakeUser32()
+    kernel = SimpleNamespace(GetCurrentThreadId=Func(lambda: 999))
+    monkeypatch.setattr(
+        smart_translation_controller_mod.ctypes,
+        "windll",
+        SimpleNamespace(user32=user32, kernel32=kernel),
+    )
+
+    controller = SmartTranslationController()
+    ok = controller._copy_via_wm_copy()
+
+    assert ok is True
+    assert user32.sent == [(0x100, smart_translation_controller_mod.WM_COPY)]
+
+
+def test_copy_probe_tries_methods_in_priority_order(monkeypatch):
+    """划词探测应按 Ctrl+C → WM_COPY → Ctrl+Insert 的优先级依次尝试取词手段，
+    而非 WM_COPY 优先并短路 Ctrl+C（参考 pot-desktop 的 Ctrl+C 注入方案）。"""
     controller, manager = _armed_controller(monkeypatch)
-    QApplication.clipboard().setText("fallback clipboard text")
 
-    controller._read_clipboard_fallback(7)
+    tried = []
+    monkeypatch.setattr(controller, "_try_copy", lambda method: tried.append(method))
+    # 模拟剪贴板始终无变化，迫使探测走完所有兜底手段直至超时。
+    monkeypatch.setattr(controller, "_read_clipboard_raw", lambda: controller._saved_text)
+
+    controller._copy_dispatched = True
+    controller._saved_text = ""
+    # 模拟 trigger() 设置的轮询预算，否则 budget 起始为 0，首帧即超时。
+    controller._poll_budget = controller.PROBE_TIMEOUT_MS - controller.COPY_DELAY_MS
+    controller._dispatch_copy(7)
+
+    # 手动驱动轮询直到探测结束（剪贴板不变 → 最终超时提示）。
+    guard = 0
+    while controller.probe_active and guard < 200:
+        controller._poll_clipboard(7)
+        guard += 1
 
     assert not controller.probe_active
-    assert manager.compact_calls[0]["text"] == "fallback clipboard text"
+    # 首手段必须是 Ctrl+C，其次 WM_COPY，最后 Ctrl+Insert。
+    assert tried == [
+        smart_translation_controller_mod._COPY_METHOD_ORDER[0],
+        smart_translation_controller_mod._COPY_METHOD_ORDER[1],
+        smart_translation_controller_mod._COPY_METHOD_ORDER[2],
+    ]
+    assert tried[0] == "ctrl_c"
+    assert manager.toast_calls == [QPoint(120, 80)]
+
+
+def test_save_and_restore_clipboard_roundtrips_text(qapp):
+    controller = SmartTranslationController()
+    QApplication.clipboard().setText("original clipboard")
+
+    saved, text = controller._save_clipboard()
+    assert text == "original clipboard"
+
+    # 模拟划词复制把选区写入剪贴板
+    QApplication.clipboard().setText("selected text")
+
+    controller._restore_clipboard(saved)
+    assert controller._read_clipboard_raw() == "original clipboard"
+
+
+def test_poll_detects_selection_copy(monkeypatch, qapp):
+    controller, manager = _armed_controller(monkeypatch)
+    QApplication.clipboard().setText("")  # 探测前剪贴板为空
+    controller._saved_text = ""
+    controller._saved_clipboard = ({}, "")
+
+    # 选区已被 Ctrl+C 复制进剪贴板（与探测前内容不同）
+    QApplication.clipboard().setText("selection text")
+
+    controller._poll_clipboard(7)
+
+    assert not controller.probe_active
+    assert manager.compact_calls[0]["text"] == "selection text"
     assert manager.input_calls == []
+    # 还原后剪贴板应回到探测前内容
+    assert controller._read_clipboard_raw() == ""
 
 
 def test_clipboard_event_before_copy_dispatch_is_ignored(monkeypatch):
@@ -178,6 +272,8 @@ def test_compact_popup_reuses_existing_translation_palette(qapp):
     assert not popup.copy_button.isEnabled()
     popup._open_full()
     assert full_requests[-1] == ("hello", "", "network error")
+    popup.close()
+    qapp.processEvents()
 
     manual_requests = []
     popup.manual_translate_requested.connect(manual_requests.append)
@@ -187,6 +283,34 @@ def test_compact_popup_reuses_existing_translation_palette(qapp):
     qapp.processEvents()
     assert not popup.source_edit.isReadOnly()
     assert manual_requests[-1] == "manual text"
+    popup.close()
+
+
+def test_popup_has_no_title_badge_or_close_button(qapp):
+    popup = TranslationPopup()
+    # 标题区的引擎徽标与关闭按钮已移除，仅保留透明拖拽条。
+    assert not hasattr(popup, "backend_badge")
+    assert not hasattr(popup, "close_button")
+    popup.close()
+
+
+def test_popup_esc_hotkey_registered_only_while_visible(qapp):
+    from core.shortcut_manager import ShortcutManager
+
+    mgr = ShortcutManager.instance()
+    esc_meta = mgr._parse_hotkey("esc")
+
+    popup = TranslationPopup()
+    popup.show_popup("hello", QPoint(10, 10))
+    qapp.processEvents()
+    # 小窗可见时临时占用 ESC 全局热键，使其在不抢焦点时也能关闭。
+    assert popup._esc_hotkey_registered is True
+    assert esc_meta in mgr._id_to_metadata.values()
+
+    popup.hide()
+    qapp.processEvents()
+    assert popup._esc_hotkey_registered is False
+    assert esc_meta not in mgr._id_to_metadata.values()
     popup.close()
 
 

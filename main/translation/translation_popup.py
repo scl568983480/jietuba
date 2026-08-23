@@ -61,9 +61,9 @@ class TranslationPopup(QWidget):
         # Guards textChanged while the popup fills the box programmatically.
         self._suppress_auto = False
         self._backend_ready = True
-        self._drag_offset: QPoint | None = None
         self._loading_step = 0
         self._target_lang = "ZH"  # 当前目标语言
+        self._esc_hotkey_registered = False  # 仅在小窗可见时临时占用 ESC 热键
 
         self.setObjectName("translationPopup")
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
@@ -92,27 +92,8 @@ class TranslationPopup(QWidget):
         root.setContentsMargins(12, 10, 12, 11)
         root.setSpacing(8)
 
-        header = QHBoxLayout()
-        # Left margin 0 keeps the badge pill flush with the input box below it.
-        header.setContentsMargins(0, 0, 0, 0)
-        header.setSpacing(8)
-
-        # No window title: the engine badge already identifies the popup, and
-        # the empty space next to it still works as the drag handle.
-        self.backend_badge = QLabel(_tr("Engine not configured"), self)
-        self.backend_badge.setObjectName("popupBadge")
-        self.backend_badge.setFixedHeight(21)
-        header.addWidget(self.backend_badge)
-        header.addStretch(1)
-
-        self.close_button = QPushButton("×", self)
-        self.close_button.setObjectName("popupClose")
-        self.close_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.close_button.setFixedSize(28, 26)
-        self.close_button.setToolTip(_tr("Close"))
-        self.close_button.clicked.connect(self._hide_popup)
-        header.addWidget(self.close_button)
-        root.addLayout(header)
+        # 不再保留顶部标题/拖拽条，原文框直接贴顶，小窗更紧凑；
+        # 关闭小窗改用 ESC 键，小窗每次在光标附近弹出，无需拖动。
 
         self.source_edit = self._make_text_view("popupSource", editable=True)
         self.source_edit.setMaximumHeight(self.SOURCE_MAX_HEIGHT)
@@ -315,13 +296,8 @@ class TranslationPopup(QWidget):
         self.set_backend_status("Translation API", ready)
 
     def set_backend_status(self, name: str, ready: bool) -> None:
+        # 小窗已移除标题区的引擎徽标；仅记录就绪状态供输入框逻辑使用。
         self._backend_ready = ready
-        self.backend_badge.setText(
-            name if ready else _tr("Engine not configured")
-        )
-        self.backend_badge.setProperty("ready", ready)
-        self.backend_badge.style().unpolish(self.backend_badge)
-        self.backend_badge.style().polish(self.backend_badge)
 
     def set_theme(self, theme_name: str) -> None:
         self._palette = LIGHT if theme_name == "light" else DARK
@@ -329,16 +305,6 @@ class TranslationPopup(QWidget):
         self.setStyleSheet(
             f"""
             QWidget#translationPopup {{ background: transparent; color: {p.text}; }}
-            QLabel#popupBadge {{
-                color: {p.green}; background: {p.accent_tint}; border-radius: 7px;
-                padding: 0 8px; font-size: 11px; font-weight: 600;
-            }}
-            QLabel#popupBadge[ready="false"] {{ color: {p.text_2}; background: {p.fill}; }}
-            QPushButton#popupClose {{
-                color: {p.text_2}; background: transparent; border: none;
-                border-radius: 8px; font-size: 19px;
-            }}
-            QPushButton#popupClose:hover {{ color: white; background: {p.danger}; }}
             QTextEdit#popupSource {{
                 color: {p.text}; background: {p.field};
                 border: 1px solid {p.fill_hover}; border-radius: 9px;
@@ -488,6 +454,42 @@ class TranslationPopup(QWidget):
         self._loading_timer.stop()
         self.hide()
 
+    # ── ESC 关闭：小窗不抢焦点（划词翻译时），故用全局热键而非 KeyPress ──
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self._register_esc_hotkey()
+
+    def hideEvent(self, event) -> None:
+        self._unregister_esc_hotkey()
+        super().hideEvent(event)
+
+    def _register_esc_hotkey(self) -> None:
+        if self._esc_hotkey_registered:
+            return
+        try:
+            from core.shortcut_manager import ShortcutManager
+
+            if ShortcutManager.instance().register_hotkey("esc", self._on_esc_hotkey):
+                self._esc_hotkey_registered = True
+        except Exception:
+            pass
+
+    def _unregister_esc_hotkey(self) -> None:
+        if not self._esc_hotkey_registered:
+            return
+        try:
+            from core.shortcut_manager import ShortcutManager
+
+            ShortcutManager.instance().unregister_hotkey("esc")
+        except Exception:
+            pass
+        self._esc_hotkey_registered = False
+
+    def _on_esc_hotkey(self) -> None:
+        # 小窗可见时按下 ESC 即关闭（无论小窗是否持有焦点）。
+        # 延迟一帧执行，避免在 WM_HOTKEY 分发过程中同步注销热键/隐藏窗口。
+        QTimer.singleShot(0, self._hide_popup)
+
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -497,19 +499,4 @@ class TranslationPopup(QWidget):
         painter.drawRoundedRect(rect, 12, 12)
 
     def mousePressEvent(self, event) -> None:
-        if event.button() == Qt.MouseButton.LeftButton and event.position().y() <= 42:
-            self._drag_offset = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
-            event.accept()
-            return
         super().mousePressEvent(event)
-
-    def mouseMoveEvent(self, event) -> None:
-        if self._drag_offset is not None and event.buttons() & Qt.MouseButton.LeftButton:
-            self.move(event.globalPosition().toPoint() - self._drag_offset)
-            event.accept()
-            return
-        super().mouseMoveEvent(event)
-
-    def mouseReleaseEvent(self, event) -> None:
-        self._drag_offset = None
-        super().mouseReleaseEvent(event)

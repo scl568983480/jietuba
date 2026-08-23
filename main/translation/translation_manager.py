@@ -326,6 +326,25 @@ class TranslationManager(QObject):
         if not self._backend_ready():
             popup.show_error(self._api_key_error())
 
+    def show_unrecognized_toast(self, position: QPoint | None = None) -> None:
+        """划词未取到文本时，弹出不抢眼的提示，而不是打开翻译小窗。"""
+        try:
+            from core.toast import show_toast
+
+            show_toast(
+                "",
+                QCoreApplication.translate(
+                    "TranslationDialog", "Could not recognize the selected text"
+                ),
+                icon="info",
+                duration_ms=1800,
+                position=position,
+            )
+        except Exception as exc:  # 提示本身失败不应影响主流程
+            from core.logger import log_exception
+
+            log_exception(exc, "显示无法识别提示失败")
+
     def _on_popup_input_changed(self):
         """Invalidate an in-flight result as soon as manual text changes."""
         if self._active_target == "compact" and self._thread is not None:

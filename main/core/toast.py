@@ -103,9 +103,10 @@ class _Toast(QWidget):
         "warning": "#faad14",
     }
 
-    def __init__(self, title: str, message: str, duration_ms: int = 2200, icon=None):
+    def __init__(self, title: str, message: str, duration_ms: int = 2200, icon=None, position=None):
         super().__init__()
         self._duration = duration_ms
+        self._position_arg = position
 
         semantic = icon if isinstance(icon, str) else "success"
         self._semantic = semantic
@@ -178,7 +179,23 @@ class _Toast(QWidget):
         painter.drawRoundedRect(rect, 8, 8)
 
     def _position(self):
-        """定位到主屏幕中央。"""
+        """定位到主屏幕中央，或给定的参考点附近（如划词位置）。"""
+        if self._position_arg is not None:
+            ref = self._position_arg
+            screen = QGuiApplication.screenAt(ref) or QGuiApplication.primaryScreen()
+            if screen is not None:
+                area = screen.availableGeometry()
+                x = ref.x() + 14
+                y = ref.y() + 22
+                if x + self.width() > area.right() - 8:
+                    x = area.right() - self.width() - 8
+                if y + self.height() > area.bottom() - 8:
+                    y = ref.y() - self.height() - 16
+                x = max(area.left() + 8, x)
+                y = max(area.top() + 8, y)
+                self.move(x, y)
+                return
+
         screen = QGuiApplication.primaryScreen()
         if not screen:
             return
@@ -201,7 +218,7 @@ class _Toast(QWidget):
         self._anim.finished.connect(self.close)
 
 
-def show_toast(title: str, message: str, duration_ms: int = 2200, icon=None):
+def show_toast(title: str, message: str, duration_ms: int = 2200, icon=None, position=None):
     """显示一条自动消失的浮动提示（主线程）。
 
     Args:
@@ -211,9 +228,11 @@ def show_toast(title: str, message: str, duration_ms: int = 2200, icon=None):
                     控制 toast 显示几秒用此参数（如 1 秒传 1000）。
         icon: 可选图标。接受语义名 "success" / "warning" / "info"，
               或直接传入 QIcon；为 None 则不显示图标。
+        position: 可选参考点 (QPoint)。提供时 toast 出现在其附近（如划词位置）；
+                  为 None 则定位到主屏幕中央。
     """
     try:
-        toast = _Toast(title, message, duration_ms, icon=icon)
+        toast = _Toast(title, message, duration_ms, icon=icon, position=position)
         # 保留强引用，防止 GC 回收；toast 关闭后由 destroyed 信号移除
         _active_toasts.append(toast)
         toast.destroyed.connect(
@@ -234,13 +253,14 @@ def _remove_toast(toast):
         pass
 
 
-def show_toast_seconds(title: str, message: str, seconds: float = 2.2, icon=None):
+def show_toast_seconds(title: str, message: str, seconds: float = 2.2, icon=None, position=None):
     """按秒显示一条自动消失的浮动提示（主线程便捷封装）。
 
     Args:
         seconds: 提示停留时长（秒），默认 2.2 秒。
         icon: 可选图标（同 show_toast）。
+        position: 可选参考点 (QPoint)，同 show_toast。
     """
     return show_toast(
-        title, message, duration_ms=int(round(seconds * 1000)), icon=icon
+        title, message, duration_ms=int(round(seconds * 1000)), icon=icon, position=position
     )

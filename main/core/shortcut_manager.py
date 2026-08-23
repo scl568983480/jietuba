@@ -376,6 +376,30 @@ class ShortcutManager(QObject):
         self._id_to_callback.clear()
         self._id_to_metadata.clear()
 
+    def unregister_hotkey(self, hotkey_str: str) -> bool:
+        """按热键字符串注销单个 Windows 全局热键（仅影响本进程注册的那个）。
+
+        用于「仅在窗口可见时临时占用某个系统热键」的场景（如翻译小窗的 ESC），
+        窗口隐藏即注销，避免长期占用该键。
+        """
+        try:
+            mods, vk = self._parse_hotkey(hotkey_str)
+        except Exception as e:
+            log_exception(e, "解析要注销的热键失败")
+            return False
+
+        for hid in list(self._id_to_callback.keys()):
+            if self._id_to_metadata.get(hid) == (mods, vk):
+                try:
+                    ctypes.windll.user32.UnregisterHotKey(None, hid)
+                except Exception:
+                    pass
+                self._id_to_callback.pop(hid, None)
+                self._id_to_metadata.pop(hid, None)
+                ShortcutManager._registered_keys_global.discard((mods, vk))
+                return True
+        return False
+
     # ==================================================================
     # 热键字符串解析
     # ==================================================================
