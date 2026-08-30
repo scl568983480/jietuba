@@ -18,3 +18,4 @@ colorama==0.4.6
 # pip install longstitch-0.3.9-cp311-cp311-win_amd64.whl
 # pip install pyclipboard-0.3.14-cp311-cp311-win_amd64.whl
 # pip install ppocr_rust-0.1.1-cp311-cp311-win_amd64.whl
+# pip install windows_media_ocr-0.3.1-cp311-cp311-win_amd64.whl

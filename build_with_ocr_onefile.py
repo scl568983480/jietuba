@@ -47,6 +47,7 @@ hidden_imports = [
     'longstitch',
     'gifrecorder',
     'ppocr_rust',
+    'windows_media_ocr',
     'PIL',
     'PIL.Image',
     'mss',
@@ -84,7 +85,6 @@ excludes = [
     'onnxruntime',
     'keyboard',
     'av',
-    'windows_media_ocr',
     'pythoncom',
     'win32com',
     'win32com.client',
@@ -215,9 +215,7 @@ def _keep_binary(entry):
     # 2) 额外指定排除
     if name in _EXTRA_STRIP:
         return False
-    # 3) 排除 windows_media_ocr 的 pyd/dll
-    if name.startswith('windows_media_ocr'):
-        return False
+
     # 4) PySide6 相关文件：白名单模式
     src_lower = entry[1].lower()
     if 'pyside6' in src_lower or 'shiboken6' in src_lower:

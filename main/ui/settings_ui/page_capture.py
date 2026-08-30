@@ -1,6 +1,5 @@
 ﻿# -*- coding: utf-8 -*-
 """截图设置页 — Fluent Design"""
-import importlib.util
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QLabel,
@@ -110,7 +109,14 @@ def create_capture_page(dialog) -> QWidget:
     # ── OCR ───────────────────────────────────────────
     grp_ocr = SettingCardGroup(dialog.tr("OCR"), view)
 
-    ocr_available = importlib.util.find_spec("windows_media_ocr") is not None
+    # 同时检测 PP-OCR 和 Windows Media OCR，只要有任一可用就显示 OCR 设置
+    try:
+        from ocr import get_available_engines
+        ocr_engines = get_available_engines()
+    except Exception:
+        ocr_engines = []
+    ocr_available = bool(ocr_engines)
+
     ocr_card = SwitchSettingCard(
         FluentIcon.SEARCH,
         dialog.tr("Enable OCR"),
@@ -126,7 +132,35 @@ def create_capture_page(dialog) -> QWidget:
     dialog.ocr_enable_toggle = ocr_card
     grp_ocr.addSettingCard(ocr_card)
 
-    if not ocr_available:
+    if ocr_available:
+        ocr_engine_card = FSettingCard(
+            FluentIcon.SEARCH,
+            dialog.tr("OCR Engine"),
+            dialog.tr("Select the OCR engine used for screenshot translation and summary."),
+            parent=grp_ocr,
+        )
+        dialog.ocr_engine_combo = ComboBox(ocr_engine_card)
+        engine_labels = {
+            "windows_media_ocr": dialog.tr("Windows Media OCR"),
+            "ppocr_rust": dialog.tr("PP-OCR"),
+            "windos_ocr": dialog.tr("Windows OCR"),
+        }
+        for engine in ocr_engines:
+            dialog.ocr_engine_combo.addItem(
+                engine_labels.get(engine, engine),
+                userData=engine,
+            )
+        current_engine = dialog.config_manager.get_ocr_engine()
+        idx = dialog.ocr_engine_combo.findData(current_engine)
+        if idx < 0:
+            idx = 0
+        dialog.ocr_engine_combo.setCurrentIndex(idx)
+        ocr_engine_card.hBoxLayout.addWidget(
+            dialog.ocr_engine_combo, 0, Qt.AlignmentFlag.AlignRight
+        )
+        ocr_engine_card.hBoxLayout.addSpacing(16)
+        grp_ocr.addSettingCard(ocr_engine_card)
+    else:
         no_ocr_card = FSettingCard(
             FluentIcon.INFO,
             dialog.tr("No OCR Version / OCR module not found"),

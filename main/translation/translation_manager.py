@@ -517,6 +517,9 @@ class TranslationManager(QObject):
             "Translation",
         )
         
+        if result_target == "dialog" and self._is_dialog_valid():
+            self._dialog.set_loading()  # 翻译按钮置灰并显示翻译中...
+
         self._request_token += 1
         token = self._request_token
         self._request_targets[token] = result_target
@@ -525,6 +528,7 @@ class TranslationManager(QObject):
             target_lang=target_lang,
             source_lang=source_lang,
             preserve_formatting=self._preserve_formatting,
+            timeout=60,
             options={"split_sentences": self._split_sentences},
         )
         thread = TranslationWorker(
@@ -573,6 +577,8 @@ class TranslationManager(QObject):
 
         mgr = get_tool_settings_manager()
         system_prompt = build_summary_prompt(target_lang)
+        if self._is_dialog_valid():
+            self._dialog.set_summary_loading()  # 确保总结按钮处于总结中...不可点击状态
         self._request_token += 1
         token = self._request_token
         self._request_targets[token] = "dialog"
@@ -802,6 +808,10 @@ class TranslationManager(QObject):
         self._split_sentences = split_sentences
         self._preserve_formatting = preserve_formatting
 
+        # 丢弃上一次未完成的翻译/总结请求，避免旧结果串到新截图
+        self._stop_current_thread()
+        self._activate_surface("dialog")
+
         # 翻译模式：确保弹窗处于翻译语义（避免复用上次总结的弹窗）
         self._summary_mode = False
 
@@ -823,6 +833,8 @@ class TranslationManager(QObject):
         if self._is_dialog_valid():
             self._dialog.source_edit.setPlainText(self._dialog.tr("Recognizing..."))
             self._dialog.source_edit.setEnabled(False)  # OCR识别期间禁用编辑
+            self._dialog.target_edit.clear()  # 清空旧结果，避免误以为直接翻译/总结
+            self._dialog.set_loading()  # 翻译按钮置灰并显示翻译中...
 
         # 2. 启动OCR线程
         self._start_ocr_thread(pixmap)
@@ -872,6 +884,8 @@ class TranslationManager(QObject):
         if self._is_dialog_valid():
             self._dialog.source_edit.setPlainText(self._dialog.tr("Recognizing..."))
             self._dialog.source_edit.setEnabled(False)
+            self._dialog.target_edit.clear()  # 清空旧结果，避免误以为直接翻译/总结
+            self._dialog.set_summary_loading()  # 总结按钮置灰并显示总结中...
 
         # 3. 启动OCR线程，完成后回调里分流到总结
         self._start_ocr_thread(pixmap)
@@ -989,7 +1003,9 @@ class TranslationManager(QObject):
                     result_target="dialog",
                 )
         else:
-            # 显示错误信息
+            # 显示错误信息，并恢复按钮可点击状态
+            self._dialog.set_busy(False)
+            self._dialog.target_edit.clear()
             self._dialog.source_edit.setPlainText("")
             self._dialog.source_edit.setPlaceholderText(result or "识别失败")
             log_error(f"OCR识别失败: {result}", "Translation")

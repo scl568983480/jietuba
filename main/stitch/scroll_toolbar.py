@@ -5,7 +5,7 @@ scroll_toolbar.py - 滚动截图浮动工具栏模块
 
 主要类:
 - _DragHandle     : 工具栏左端拖动手柄（主题色圆角竖条，支持手动模式圆点 + 双击复位信号）
-- FloatingToolbar : 可拖动的浮动工具栏，包含方向切换、手动截图、钉图、完成、取消等按钮
+- FloatingToolbar : 可拖动的浮动工具栏，包含方向切换、手动截图、钉图、翻译、总结、完成、取消等按钮
 """
 
 from PySide6.QtWidgets import QWidget, QPushButton, QVBoxLayout, QHBoxLayout
@@ -78,6 +78,8 @@ class FloatingToolbar(QWidget):
     direction_changed = Signal()
     manual_capture = Signal()
     pin_clicked = Signal()   # 钉图信号
+    translate_clicked = Signal()   # 长截图翻译信号
+    summary_clicked = Signal()     # 长截图总结信号
     finish_clicked = Signal()
     cancel_clicked = Signal()
 
@@ -107,7 +109,7 @@ class FloatingToolbar(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
         self.setFixedHeight(40)
-        self.setMinimumWidth(200)
+        self.setMinimumWidth(420)
 
     def _setup_toolbar_ui(self):
         """设置工具栏 UI"""
@@ -181,6 +183,26 @@ class FloatingToolbar(QWidget):
         self.pin_btn.setStyleSheet(self._icon_btn_style())
         self.pin_btn.clicked.connect(self.pin_clicked.emit)
         toolbar_layout.addWidget(self.pin_btn, 0, Qt.AlignmentFlag.AlignVCenter)
+
+        # 长截图翻译按钮（OCR + 翻译）
+        self.translate_btn = QPushButton()
+        self.translate_btn.setIcon(QIcon(ResourceManager.get_resource_path("svg/翻译.svg")))
+        self.translate_btn.setIconSize(QSize(24, 24))
+        self.translate_btn.setFixedSize(32, 32)
+        self.translate_btn.setToolTip(self.tr("Translate long screenshot (OCR + Translate)"))
+        self.translate_btn.setStyleSheet(self._icon_btn_style())
+        self.translate_btn.clicked.connect(self.translate_clicked.emit)
+        toolbar_layout.addWidget(self.translate_btn, 0, Qt.AlignmentFlag.AlignVCenter)
+
+        # 长截图总结按钮（OCR + AI 总结）
+        self.summary_btn = QPushButton()
+        self.summary_btn.setIcon(QIcon(ResourceManager.get_resource_path("svg/总结.svg")))
+        self.summary_btn.setIconSize(QSize(24, 24))
+        self.summary_btn.setFixedSize(32, 32)
+        self.summary_btn.setToolTip(self.tr("Summarize long screenshot (OCR + AI summary)"))
+        self.summary_btn.setStyleSheet(self._icon_btn_style())
+        self.summary_btn.clicked.connect(self.summary_clicked.emit)
+        toolbar_layout.addWidget(self.summary_btn, 0, Qt.AlignmentFlag.AlignVCenter)
 
         # 完成按钮
         self.finish_btn = QPushButton()

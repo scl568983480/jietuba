@@ -145,6 +145,14 @@ class OpenAPITranslateProvider(TranslationProvider):
                 TranslationErrorCode.NETWORK_ERROR,
                 f"Network error: {reason}",
             )
+        except TimeoutError as exc:
+            log_error(
+                f"OpenAI API request timed out: {exc}", "OpenAPITranslate"
+            )
+            return self._error(
+                TranslationErrorCode.NETWORK_ERROR,
+                "Translation request timed out, please try again later",
+            )
         except (ValueError, UnicodeDecodeError) as exc:
             log_error(
                 f"OpenAI API response error: {exc}", "OpenAPITranslate"

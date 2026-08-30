@@ -35,7 +35,7 @@ python -m pip install -r requirements.txt
 请在项目根目录执行：
 
 ```bash
-python -m pip install gifrecorder-0.2.1-cp311-cp311-win_amd64.whl longstitch-0.3.11-cp311-cp311-win_amd64.whl pyclipboard-0.3.14-cp311-cp311-win_amd64.whl ppocr_rust-0.1.1-cp311-cp311-win_amd64.whl
+python -m pip install gifrecorder-0.2.1-cp311-cp311-win_amd64.whl longstitch-0.3.11-cp311-cp311-win_amd64.whl pyclipboard-0.3.14-cp311-cp311-win_amd64.whl ppocr_rust-0.1.1-cp311-cp311-win_amd64.whl windows_media_ocr-0.3.1-cp311-cp311-win_amd64.whl
 ```
 
 | 包名 | 版本 | 功能 |
@@ -44,6 +44,7 @@ python -m pip install gifrecorder-0.2.1-cp311-cp311-win_amd64.whl longstitch-0.3
 | `longstitch` | 0.3.11 | 长截图拼接算法 |
 | `pyclipboard` | 0.3.14 | 剪切板底层操作 |
 | `ppocr_rust` | 0.1.1 | PP-OCR (PaddleOCR) ONNX 文字识别引擎（纯 Rust + ONNX Runtime，需 det/rec 模型） |
+| `windows_media_ocr` | 0.3.1 | Windows 自带 OCR 引擎（速度快，默认推荐） |
 
 > **注意：** 这些 `.whl` 文件仅适用于 Windows x86_64 + Python 3.11 环境。请勿安装到全局 Python 中。
 

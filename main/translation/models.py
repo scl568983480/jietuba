@@ -59,7 +59,7 @@ class TranslationRequest:
     target_lang: str
     source_lang: str | None = None
     preserve_formatting: bool = True
-    timeout: int = 10
+    timeout: int = 60
     options: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:

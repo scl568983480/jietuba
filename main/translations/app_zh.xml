@@ -456,6 +456,26 @@ Replace it?</source>
         <translation>在钉图窗口中启用文字识别和选择。</translation>
     </message>
     <message>
+        <source>OCR Engine</source>
+        <translation>OCR引擎</translation>
+    </message>
+    <message>
+        <source>Select the OCR engine used for screenshot translation and summary.</source>
+        <translation>选择用于截图翻译和总结的OCR引擎。</translation>
+    </message>
+    <message>
+        <source>Windows Media OCR</source>
+        <translation>Windows 媒体 OCR</translation>
+    </message>
+    <message>
+        <source>PP-OCR</source>
+        <translation>PP-OCR</translation>
+    </message>
+    <message>
+        <source>Windows OCR</source>
+        <translation>Windows OCR</translation>
+    </message>
+    <message>
         <source>Auto language detection: Supports Chinese, Japanese, English mixed recognition</source>
         <translation>自动语言检测: 支持中日英混合识别</translation>
     </message>

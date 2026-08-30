@@ -14,7 +14,7 @@ ocr_manager.py - OCR 功能模块
 """
 
 
-OCR_VARIANT: str = "pp"
+OCR_VARIANT: str = "both"
 
 from PySide6.QtGui import QPixmap, QImage
 from PySide6.QtCore import QBuffer, QIODevice, Qt
@@ -198,12 +198,13 @@ class OCRManager:
     def get_available_engines(self) -> list:
         """获取可用的 OCR 引擎列表"""
         engines = []
+        # Windows 自带 OCR 优先展示，符合默认推荐
+        if WINDOWS_OCR_AVAILABLE:
+            engines.append(self.ENGINE_WINDOWS_OCR)
         if PP_RUST_AVAILABLE:
             engines.append(self.ENGINE_PP_RUST)
         if WINDOS_OCR_AVAILABLE:
             engines.append(self.ENGINE_WINDOS_OCR)
-        if WINDOWS_OCR_AVAILABLE:
-            engines.append(self.ENGINE_WINDOWS_OCR)
         return engines
     
     def set_engine(self, engine_type: str):
@@ -269,27 +270,30 @@ class OCRManager:
         if engine_type:
             self.set_engine(engine_type)
         
-        # 如果没有设置当前引擎，根据 OCR_VARIANT 自动选择
+        # 如果没有设置当前引擎，优先使用设置中选择的引擎；未设置或不可用时默认 Windows Media OCR
         if not self._current_engine:
-            if OCR_VARIANT == "win":
-                # win 版：高精度引擎优先，Windows Media OCR 托底
-                if WINDOS_OCR_AVAILABLE:
-                    self._current_engine = self.ENGINE_WINDOS_OCR
-                    _ocr_log(f"自动选择引擎: {self._current_engine} (高精度引擎)", "INFO")
-                elif WINDOWS_OCR_AVAILABLE:
-                    self._current_engine = self.ENGINE_WINDOWS_OCR
-                    _ocr_log(f"自动选择引擎: {self._current_engine} (Windows Media OCR 托底)", "INFO")
-                else:
-                    self._last_error = "没有可用的 OCR 引擎"
-                    return False
+            try:
+                from settings import get_tool_settings_manager
+                configured = get_tool_settings_manager().get_ocr_engine()
+                if configured:
+                    if self.set_engine(configured):
+                        _ocr_log(f"按设置选择 OCR 引擎: {configured}", "INFO")
+            except Exception:
+                pass
+
+        if not self._current_engine:
+            if WINDOWS_OCR_AVAILABLE:
+                self._current_engine = self.ENGINE_WINDOWS_OCR
+                _ocr_log("自动选择引擎: windows_media_ocr (Windows 自带 OCR)", "INFO")
+            elif PP_RUST_AVAILABLE:
+                self._current_engine = self.ENGINE_PP_RUST
+                _ocr_log("自动选择引擎: ppocr_rust (PP-OCR 原生引擎)", "INFO")
+            elif WINDOS_OCR_AVAILABLE:
+                self._current_engine = self.ENGINE_WINDOS_OCR
+                _ocr_log("自动选择引擎: windos_ocr (高精度引擎)", "INFO")
             else:
-                # pp 版（默认）：只用 ppocr_rust
-                if PP_RUST_AVAILABLE:
-                    self._current_engine = self.ENGINE_PP_RUST
-                    _ocr_log(f"自动选择引擎: {self._current_engine} (ppocr_rust 原生引擎)", "INFO")
-                else:
-                    self._last_error = "没有可用的 OCR 引擎"
-                    return False
+                self._last_error = "没有可用的 OCR 引擎"
+                return False
         
         # 根据引擎类型初始化
         if self._current_engine == self.ENGINE_PP_RUST:

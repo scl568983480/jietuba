@@ -468,11 +468,13 @@ class ScrollCaptureWindow(QWidget):
         self.toolbar.direction_changed.connect(self._toggle_direction)
         self.toolbar.manual_capture.connect(self._on_manual_capture)
         self.toolbar.pin_clicked.connect(self._on_pin)
+        self.toolbar.translate_clicked.connect(self._on_translate)
+        self.toolbar.summary_clicked.connect(self._on_summary)
         self.toolbar.finish_clicked.connect(self._on_finish)
         self.toolbar.cancel_clicked.connect(self._on_cancel)
         
-        self._position_floating_toolbar()
         self.toolbar.show()
+        self._position_floating_toolbar()
 
     def _position_floating_toolbar(self):
         """根据屏幕边界将工具栏对齐到截图区域上方居中，支持上/下/左/右四向智能回退"""
@@ -1467,6 +1469,133 @@ class ScrollCaptureWindow(QWidget):
             import traceback
             traceback.print_exc()
     
+    def _get_final_result_image(self):
+        """返回最终面向用户的长截图结果图（已还原横向/反向滚动方向）。
+
+        Returns:
+            PIL.Image | None: 最终结果图；没有截图时返回 None。
+        """
+        if self.stitched_result is None:
+            return None
+
+        result_image = self.stitched_result
+
+        # 向上/向左滚动模式：先翻转还原（必须在横向旋转之前）
+        if (self.scroll_locked_direction == "up" and
+                len(self.screenshots) >= 2):
+            result_image = result_image.transpose(Image.FLIP_TOP_BOTTOM)
+
+        # 横向模式：将拼接结果逆时针旋转90度还原
+        if (self.scroll_direction == "horizontal" and
+                len(self.screenshots) >= 2):
+            result_image = result_image.rotate(90, expand=True)
+
+        return result_image
+
+    def _result_image_to_qimage(self, result_image):
+        """将 PIL Image 转为独立的 QImage（用于 OCR/翻译/总结）。"""
+        if result_image is None:
+            return None
+        image_rgba = result_image.convert("RGBA")
+        width, height = image_rgba.size
+        data = image_rgba.tobytes("raw", "RGBA")
+        return QImage(
+            data, width, height, width * 4, QImage.Format.Format_RGBA8888
+        ).copy()
+
+    def _on_translate(self):
+        """翻译长截图 - 对当前拼接结果进行 OCR + 翻译"""
+        print("翻译长截图结果...", force=True)
+
+        if self.config_manager is None:
+            print("[ERROR] config_manager 未设置，无法翻译长截图", force=True)
+            return
+
+        result_image = self._get_final_result_image()
+        if result_image is None:
+            print("[WARN] 没有拼接结果，无法翻译", force=True)
+            return
+
+        qimage = self._result_image_to_qimage(result_image)
+        if qimage is None or qimage.isNull():
+            print("[ERROR] 无法转换长截图结果用于翻译", force=True)
+            return
+
+        from PySide6.QtGui import QPixmap
+        pixmap_copy = QPixmap.fromImage(qimage)
+        log_debug(
+            f"已复制长截图结果用于翻译: {pixmap_copy.width()}x{pixmap_copy.height()}",
+            module=_MODULE_TAG,
+        )
+
+        # 在关闭长截图窗口前获取翻译参数
+        params = (
+            self.config_manager.get_translation_request_params()
+            if self.config_manager
+            else {}
+        )
+
+        # 隐藏并清理长截图窗口，释放内存
+        self._cleanup()
+        self.hide()
+
+        # 启动 OCR 并打开翻译窗口
+        try:
+            from translation import TranslationManager
+            TranslationManager.instance().translate_from_image(
+                pixmap=pixmap_copy,
+                **params,
+            )
+        finally:
+            self.finished.emit()
+            self.close()
+
+    def _on_summary(self):
+        """总结长截图 - 对当前拼接结果进行 OCR + AI 总结"""
+        print("总结长截图结果...", force=True)
+
+        if self.config_manager is None:
+            print("[ERROR] config_manager 未设置，无法总结长截图", force=True)
+            return
+
+        result_image = self._get_final_result_image()
+        if result_image is None:
+            print("[WARN] 没有拼接结果，无法总结", force=True)
+            return
+
+        qimage = self._result_image_to_qimage(result_image)
+        if qimage is None or qimage.isNull():
+            print("[ERROR] 无法转换长截图结果用于总结", force=True)
+            return
+
+        from PySide6.QtGui import QPixmap
+        pixmap_copy = QPixmap.fromImage(qimage)
+        log_debug(
+            f"已复制长截图结果用于总结: {pixmap_copy.width()}x{pixmap_copy.height()}",
+            module=_MODULE_TAG,
+        )
+
+        target_lang = (
+            self.config_manager.get_summary_target_lang()
+            if self.config_manager
+            else "ZH"
+        )
+
+        # 隐藏并清理长截图窗口，释放内存
+        self._cleanup()
+        self.hide()
+
+        # 启动 OCR 并调用大模型总结
+        try:
+            from translation import TranslationManager
+            TranslationManager.instance().summarize_from_image(
+                pixmap=pixmap_copy,
+                target_lang=target_lang,
+            )
+        finally:
+            self.finished.emit()
+            self.close()
+
     def _on_pin(self):
         """钉图按钮点击 - 将当前拼接结果钉到桌面，然后结束长截图"""
         print("钉图长截图结果...")

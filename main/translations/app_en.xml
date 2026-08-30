@@ -448,6 +448,26 @@ Replace it?</translation>
         <translation>Enables text recognition and selection in pinned windows.</translation>
     </message>
     <message>
+        <source>OCR Engine</source>
+        <translation>OCR Engine</translation>
+    </message>
+    <message>
+        <source>Select the OCR engine used for screenshot translation and summary.</source>
+        <translation>Select the OCR engine used for screenshot translation and summary.</translation>
+    </message>
+    <message>
+        <source>Windows Media OCR</source>
+        <translation>Windows Media OCR</translation>
+    </message>
+    <message>
+        <source>PP-OCR</source>
+        <translation>PP-OCR</translation>
+    </message>
+    <message>
+        <source>Windows OCR</source>
+        <translation>Windows OCR</translation>
+    </message>
+    <message>
         <source>Auto language detection: Supports Chinese, Japanese, English mixed recognition</source>
         <translation>Auto language detection: Supports Chinese, Japanese, English mixed recognition</translation>
     </message>
