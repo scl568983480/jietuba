@@ -314,6 +314,70 @@ def test_popup_esc_hotkey_registered_only_while_visible(qapp):
     popup.close()
 
 
+def test_popup_click_outside_watcher_armed_only_while_visible(qapp):
+    popup = TranslationPopup()
+    assert popup._click_watcher_armed is False
+
+    popup.show_popup("hello", QPoint(10, 10))
+    qapp.processEvents()
+    assert popup._click_watcher_armed is True
+
+    popup.hide()
+    qapp.processEvents()
+    assert popup._click_watcher_armed is False
+    popup.close()
+
+
+def test_popup_hides_on_outside_click_and_keeps_inside_clicks(qapp, monkeypatch):
+    import translation.translation_popup as popup_mod
+
+    popup = TranslationPopup()
+    popup.show_popup("hello", QPoint(10, 10))
+    qapp.processEvents()
+    assert popup.isVisible()
+
+    # 点击落在小窗内 → 保持显示
+    monkeypatch.setattr(popup_mod, "_top_level_widget_at", lambda pos: popup)
+    popup._on_global_press(50, 50)
+    qapp.processEvents()
+    assert popup.isVisible()
+
+    # 点击落在小窗自身（内部控件也经父链归到小窗）→ 保持显示
+    monkeypatch.setattr(
+        popup_mod, "_top_level_widget_at", lambda pos: popup.source_edit
+    )
+    popup._on_global_press(50, 50)
+    qapp.processEvents()
+    assert popup.isVisible()
+
+    # 点击窗口以外（其它程序 / 桌面 → 本进程无顶层窗口）→ 关闭
+    monkeypatch.setattr(popup_mod, "_top_level_widget_at", lambda pos: None)
+    popup._on_global_press(50, 50)
+    qapp.processEvents()
+    assert not popup.isVisible()
+    popup.close()
+
+
+def test_popup_lang_menu_open_suppresses_outside_click_close(qapp, monkeypatch):
+    import translation.translation_popup as popup_mod
+
+    popup = TranslationPopup()
+    popup.show_popup("hello", QPoint(10, 10))
+    qapp.processEvents()
+
+    popup._menu_open = True  # 语言菜单 exec 期间
+    monkeypatch.setattr(popup_mod, "_top_level_widget_at", lambda pos: None)
+    popup._on_global_press(50, 50)
+    qapp.processEvents()
+    assert popup.isVisible()
+
+    popup._menu_open = False
+    popup._on_global_press(50, 50)
+    qapp.processEvents()
+    assert not popup.isVisible()
+    popup.close()
+
+
 def test_compact_popup_uses_current_application_theme_when_created(qapp):
     manager = TranslationManager()
     manager._ui_theme = SimpleNamespace(is_dark=False)

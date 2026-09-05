@@ -3,7 +3,19 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QPoint, QPropertyAnimation, QRectF, Qt, QTimer, Signal
+import ctypes
+import sys
+import threading
+
+from PySide6.QtCore import (
+    QObject,
+    QPoint,
+    QPropertyAnimation,
+    QRectF,
+    Qt,
+    QTimer,
+    Signal,
+)
 from PySide6.QtGui import QColor, QCursor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (
     QApplication,
@@ -23,6 +35,173 @@ from .languages import TRANSLATION_LANGUAGES
 
 
 _tr = make_tr("TranslationDialog")
+
+
+# ── 点击窗口外关闭：全局鼠标按下监听 ──────────────────────────────────
+# 小窗默认不抢焦点（划词翻译时），点击"窗口以外"的位置不会产生任何 Qt 事件，
+# 因此无法用 focusOut / WindowDeactivate 感知。小窗可见期间安装一个 Windows
+# 低级鼠标钩子（WH_MOUSE_LL），由独立的泵线程转发"鼠标按下"的屏幕坐标，
+# 再由 GUI 线程判断是否落在小窗（或其弹出菜单）内。钩子只观察、从不吞事件。
+if sys.platform == "win32":
+    WH_MOUSE_LL = 14
+    HC_ACTION = 0
+    WM_QUIT = 0x0012
+    WM_LBUTTONDOWN = 0x0201
+    WM_RBUTTONDOWN = 0x0204
+    WM_MBUTTONDOWN = 0x0207
+    WM_XBUTTONDOWN = 0x020B
+    _MOUSE_DOWN_MESSAGES = frozenset(
+        {WM_LBUTTONDOWN, WM_RBUTTONDOWN, WM_MBUTTONDOWN, WM_XBUTTONDOWN}
+    )
+    PM_NOREMOVE = 0x0000
+else:
+    WH_MOUSE_LL = None
+    _MOUSE_DOWN_MESSAGES = frozenset()
+
+
+class _POINT_L(ctypes.Structure):
+    _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
+
+
+class _MSG_L(ctypes.Structure):
+    _fields_ = [
+        ("hwnd", ctypes.c_void_p),
+        ("message", ctypes.c_uint),
+        ("wParam", ctypes.c_size_t),
+        ("lParam", ctypes.c_ssize_t),
+        ("time", ctypes.c_ulong),
+        ("pt", _POINT_L),
+    ]
+
+
+class _MSLLHOOKSTRUCT(ctypes.Structure):
+    _fields_ = [
+        ("pt", _POINT_L),
+        ("mouse_data", ctypes.c_ulong),
+        ("flags", ctypes.c_ulong),
+        ("time", ctypes.c_ulong),
+        ("extra_info", ctypes.c_size_t),
+    ]
+
+
+class _GlobalClickWatcher(QObject):
+    """全局鼠标"按下"观察器（仅 Windows，其余平台静默失效）。
+
+    低级钩子的回调必须由安装它的线程泵消息才会被调用，因此钩子装在一个独立
+    守护线程里，配合 GetMessageW 泵循环；回调里只转发屏幕坐标，判断交给 GUI
+    线程（信号为 QueuedConnection，跨线程安全）。
+    """
+
+    pressed = Signal(int, int)  # 屏幕坐标 (x, y)
+
+    def __init__(self):
+        super().__init__()
+        self._thread = None
+        self._ready = threading.Event()
+        self._stop = threading.Event()
+        self._tid = None
+
+    def start(self) -> None:
+        if self._thread is not None and self._thread.is_alive():
+            return
+        self._stop.clear()
+        self._ready.clear()
+        self._thread = threading.Thread(
+            target=self._run,
+            name="translation-popup-click-hook",
+            daemon=True,
+        )
+        self._thread.start()
+
+    def stop(self) -> None:
+        thread, self._thread = self._thread, None
+        if thread is None or not thread.is_alive():
+            return
+        self._stop.set()
+        # 用 WM_QUIT 唤醒阻塞在 GetMessageW 中的泵线程，使其走清理路径退出。
+        if self._ready.wait(timeout=0.2) and self._tid is not None:
+            try:
+                ctypes.windll.user32.PostThreadMessageW(
+                    self._tid, WM_QUIT, 0, 0
+                )
+            except Exception:
+                pass
+        thread.join(timeout=0.5)
+
+    def _run(self) -> None:
+        self._tid = threading.get_ident()
+        try:
+            user32 = ctypes.windll.user32
+        except Exception:
+            self._ready.set()
+            return
+
+        HookProc = ctypes.WINFUNCTYPE(
+            ctypes.c_ssize_t, ctypes.c_int, ctypes.c_size_t, ctypes.c_ssize_t
+        )
+        proc = HookProc(self._hook_proc)
+        self._proc = proc  # 持有引用，防止回调被 GC 后钩子崩溃
+
+        try:
+            user32.SetWindowsHookExW.restype = ctypes.c_void_p
+            user32.SetWindowsHookExW.argtypes = [
+                ctypes.c_int, HookProc, ctypes.c_void_p, ctypes.c_ulong,
+            ]
+            hook = user32.SetWindowsHookExW(WH_MOUSE_LL, proc, None, 0)
+            if not hook:
+                return
+            user32.CallNextHookEx.restype = ctypes.c_ssize_t
+            user32.CallNextHookEx.argtypes = [
+                ctypes.c_void_p, ctypes.c_int,
+                ctypes.c_size_t, ctypes.c_ssize_t,
+            ]
+        except Exception:
+            return
+        finally:
+            self._ready.set()
+
+        msg = _MSG_L()
+        user32.PeekMessageW(
+            ctypes.byref(msg), None, 0, 0, PM_NOREMOVE
+        )  # 让本线程先拥有消息队列
+        try:
+            while not self._stop.is_set():
+                result = user32.GetMessageW(ctypes.byref(msg), None, 0, 0)
+                if result <= 0:  # 0 = WM_QUIT；-1 = 出错
+                    break
+                user32.TranslateMessage(ctypes.byref(msg))
+                user32.DispatchMessageW(ctypes.byref(msg))
+        finally:
+            try:
+                user32.UnhookWindowsHookEx(hook)
+            except Exception:
+                pass
+            self._proc = None
+
+    def _hook_proc(self, n_code: int, w_param: int, l_param: int) -> int:
+        try:
+            if (
+                n_code == HC_ACTION
+                and w_param in _MOUSE_DOWN_MESSAGES
+                and l_param
+            ):
+                struct = _MSLLHOOKSTRUCT.from_address(l_param)
+                self.pressed.emit(int(struct.pt.x), int(struct.pt.y))
+        except Exception:
+            pass
+        try:
+            user32 = ctypes.windll.user32
+            return user32.CallNextHookEx(None, n_code, w_param, l_param)
+        except Exception:
+            return 0
+
+
+def _top_level_widget_at(position: QPoint):
+    """取该屏幕坐标下本进程的最顶层 QWidget（其它程序窗口返回 None）。"""
+    try:
+        return QApplication.topLevelAt(position)
+    except RuntimeError:
+        return None
 
 
 class TranslationPopup(QWidget):
@@ -64,6 +243,9 @@ class TranslationPopup(QWidget):
         self._loading_step = 0
         self._target_lang = "ZH"  # 当前目标语言
         self._esc_hotkey_registered = False  # 仅在小窗可见时临时占用 ESC 热键
+        self._click_watcher = None  # 点击窗口外关闭用的全局鼠标观察器
+        self._click_watcher_armed = False  # 观察器仅在小窗可见期间启用
+        self._menu_open = False  # 语言菜单弹出期间不因"点击窗外"而关闭
 
         self.setObjectName("translationPopup")
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
@@ -171,7 +353,12 @@ class TranslationPopup(QWidget):
         
         # 在按钮下方弹出菜单
         pos = self.lang_button.mapToGlobal(self.lang_button.rect().bottomLeft())
-        action = menu.exec(pos)
+        action = None
+        self._menu_open = True
+        try:
+            action = menu.exec(pos)
+        finally:
+            self._menu_open = False
         
         if action:
             new_lang = action.data()
@@ -458,8 +645,10 @@ class TranslationPopup(QWidget):
     def showEvent(self, event) -> None:
         super().showEvent(event)
         self._register_esc_hotkey()
+        self._arm_click_outside_close()
 
     def hideEvent(self, event) -> None:
+        self._disarm_click_outside_close()
         self._unregister_esc_hotkey()
         super().hideEvent(event)
 
@@ -489,6 +678,68 @@ class TranslationPopup(QWidget):
         # 小窗可见时按下 ESC 即关闭（无论小窗是否持有焦点）。
         # 延迟一帧执行，避免在 WM_HOTKEY 分发过程中同步注销热键/隐藏窗口。
         QTimer.singleShot(0, self._hide_popup)
+
+    # ── 点击窗口外关闭 ──────────────────────────────────────────────
+    def _arm_click_outside_close(self) -> None:
+        """小窗可见期间启用全局鼠标钩子：点击窗口以外任意位置即关闭。"""
+        if self._click_watcher_armed or sys.platform != "win32":
+            return
+        try:
+            if self._click_watcher is None:
+                watcher = _GlobalClickWatcher()
+                watcher.pressed.connect(
+                    self._on_global_press,
+                    Qt.ConnectionType.QueuedConnection,
+                )
+                self._click_watcher = watcher
+            self._click_watcher.start()
+            self._click_watcher_armed = True
+        except Exception:
+            self._click_watcher_armed = False
+            self._click_watcher = None
+
+    def _disarm_click_outside_close(self) -> None:
+        if not self._click_watcher_armed:
+            return
+        self._click_watcher_armed = False
+        try:
+            if self._click_watcher is not None:
+                self._click_watcher.stop()
+        except Exception:
+            pass
+
+    def _on_global_press(self, x: int, y: int) -> None:
+        """GUI 线程收到一次全局鼠标按下：若不在小窗（或其弹出菜单）内则关闭。"""
+        if not self.isVisible():
+            return
+        # 语言菜单 / 右键复制菜单等派生弹出层打开期间，不把小窗"以外"的点击
+        # 当作关闭信号（否则选择语言或复制译文时小窗会先被关掉）。
+        if self._menu_open:
+            return
+        active_popup = QApplication.activePopupWidget()
+        if active_popup is not None and self._chain_reaches_popup(active_popup):
+            return
+        top = _top_level_widget_at(QPoint(x, y))
+        if top is not None and self._chain_reaches_popup(top):
+            return  # 点在小窗自身或其弹出菜单里
+        self._hide_popup()
+
+    def _chain_reaches_popup(self, widget) -> bool:
+        """判断某控件（如语言菜单里的菜单项）的父链最终是否是小窗本身。"""
+        seen = set()
+        current = widget
+        while current is not None:
+            if current is self:
+                return True
+            marker = id(current)
+            if marker in seen:
+                return False
+            seen.add(marker)
+            parent = current.parentWidget()
+            if parent is current:
+                break
+            current = parent
+        return False
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
