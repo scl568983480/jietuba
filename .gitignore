@@ -12,6 +12,7 @@ pip_stage*.log
 # PyInstaller 打包产物（build_with_ocr_onefile.py）
 # ─────────────────────────────────────────────
 build/
+target/
 dist/
 jietuba_pp.spec
 jietuba_pp.exe

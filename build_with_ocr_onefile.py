@@ -1,4 +1,4 @@
-"""
+﻿"""
 截图吧 - PP-OCR 版本打包脚本
 使用 onefile 模式（单文件）
 
@@ -161,13 +161,18 @@ if __name__ == '__main__':
 # -*- mode: python ; coding: utf-8 -*-
 # 此 spec 文件由 build_with_ocr_onefile.py 自动生成，请勿手动修改后直接运行
 import os as _os
+from PyInstaller.utils.hooks import collect_all
+
+# 完整收集 windows_media_ocr：包含 oneocr_engine.pyd、旧 windows_media_ocr.pyd、
+# oneocr.dll、oneocr.onemodel、onnxruntime.dll 以及子模块隐式导入。
+_wmo_datas, _wmo_binaries, _wmo_hiddenimports = collect_all('windows_media_ocr')
 
 a = Analysis(
     ['{MAIN_APP}'],
     pathex=['main'],
-    binaries=[],
-    datas={datas_repr},
-    hiddenimports={hidden_repr},
+    binaries=_wmo_binaries,
+    datas={datas_repr} + _wmo_datas,
+    hiddenimports={hidden_repr} + _wmo_hiddenimports,
     hookspath=[],
     hooksconfig={{}},
     runtime_hooks=[],

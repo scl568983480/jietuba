@@ -196,15 +196,16 @@ class OCRManager:
         return OCR_AVAILABLE
     
     def get_available_engines(self) -> list:
-        """获取可用的 OCR 引擎列表"""
+        """获取可用的 OCR 引擎列表。
+
+        注意：oneocr 与 Windows.Media.Ocr 合并为一个引擎（windows_media_ocr），
+        内部优先 oneocr，不可用时自动回退 Windows.Media.Ocr。
+        """
         engines = []
-        # Windows 自带 OCR 优先展示，符合默认推荐
-        if WINDOWS_OCR_AVAILABLE:
+        if WINDOWS_OCR_AVAILABLE or WINDOS_OCR_AVAILABLE:
             engines.append(self.ENGINE_WINDOWS_OCR)
         if PP_RUST_AVAILABLE:
             engines.append(self.ENGINE_PP_RUST)
-        if WINDOS_OCR_AVAILABLE:
-            engines.append(self.ENGINE_WINDOS_OCR)
         return engines
     
     def set_engine(self, engine_type: str):
@@ -241,7 +242,10 @@ class OCRManager:
             elif engine_type == self.ENGINE_WINDOS_OCR:
                 _ocr_log(f"使用 windos_ocr 引擎 (Windows ScreenSketch OCR)")
             else:
-                _ocr_log(f"使用 windows_media_ocr 引擎")
+                if WINDOS_OCR_AVAILABLE:
+                    _ocr_log("使用 windows_media_ocr 组合引擎（OneOCR 优先，Windows.Media.Ocr 备用）")
+                else:
+                    _ocr_log("使用 windows_media_ocr 引擎（OneOCR 不可用，仅 Windows.Media.Ocr）")
                 _ocr_log(f"Windows OCR 支持的语言: {available_langs}")
             return True
         
@@ -547,7 +551,15 @@ class OCRManager:
         if not self._windows_ocr_language:
             if not self._initialize_windows_ocr("中文"):
                 return self._format_error(return_format)
-        
+
+        # oneocr 高精度引擎优先；识别不到时自动回退 Windows.Media.Ocr
+        if WINDOS_OCR_AVAILABLE:
+            oneocr_result = self._recognize_with_windos_ocr(pixmap, "dict")
+            if isinstance(oneocr_result, dict):
+                if oneocr_result.get("code") == 100 and oneocr_result.get("data"):
+                    _ocr_log("oneocr 高精度引擎识别成功", "INFO")
+                    return oneocr_result
+
         try:
             start_time = time.time()
             

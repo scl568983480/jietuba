@@ -1,0 +1,15 @@
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "windows_media_ocr"
+version = "0.4.0"
+description = "Windows OCR: OneOCR high-accuracy engine first, Windows.Media.Ocr fallback"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.maturin]
+module-name = "windows_media_ocr.oneocr_engine"
+python-source = "python"
+features = ["pyo3/extension-module"]
