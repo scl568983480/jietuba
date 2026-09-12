@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "截图吧 (Jietuba) 运行时主链路",
+    "quality_profile": "standard",
+    "views": [
+      {
+        "id": "capture-to-ai",
+        "label": "截图到 AI",
+        "focus": ["user", "main_app", "screenshot_window", "ocr_manager", "translation_manager", "llm_api"],
+        "note": "热键触发截图，OCR 识别后调用大模型完成翻译或总结。"
+      },
+      {
+        "id": "local-side",
+        "label": "本地功能",
+        "focus": ["main_app", "screenshot_window", "clipboard_manager", "long_stitch", "gif_recorder"],
+        "note": "剪贴板、长截图和 GIF 录制作为主链路的本地侧分支。"
+      },
+      {
+        "id": "ocr-stack",
+        "label": "OCR 引擎",
+        "focus": ["ocr_manager", "local_ocr_engines"],
+        "note": "OneOCR 优先，Windows.Media.Ocr 回退，PP-OCR 作为第二引擎。"
+      }
+    ]
+  },
+  "components": [
+    { "id": "user", "type": "external", "label": "用户 / 热键", "sublabel": "Ctrl+1 / Alt+A", "pos": [40, 320], "size": [150, 64] },
+    { "id": "main_app", "type": "frontend", "label": "MainApp", "sublabel": "PySide6 主进程", "pos": [240, 320], "size": [150, 64] },
+    { "id": "screenshot_window", "type": "frontend", "label": "截图窗口", "sublabel": "选区 / 画布 / 工具栏", "pos": [440, 320], "size": [170, 64] },
+    { "id": "ocr_manager", "type": "backend", "label": "OCR 管理器", "sublabel": "OneOCR 优先", "pos": [660, 320], "size": [160, 64] },
+    { "id": "translation_manager", "type": "backend", "label": "翻译 / 总结", "sublabel": "TranslationManager", "pos": [870, 320], "size": [170, 64] },
+    { "id": "llm_api", "type": "cloud", "label": "OpenAI 兼容 API", "sublabel": "Chat Completions", "pos": [1090, 320], "size": [180, 64] },
+    { "id": "clipboard_manager", "type": "backend", "label": "剪贴板管理", "sublabel": "pyclipboard + SQLite", "pos": [240, 150], "size": [170, 64] },
+    { "id": "local_ocr_engines", "type": "external", "label": "本地 OCR 引擎", "sublabel": "OneOCR  Windows  PP-OCR", "pos": [660, 150], "size": [190, 64] },
+    { "id": "long_stitch", "type": "backend", "label": "长截图", "sublabel": "Rust longstitch", "pos": [440, 500], "size": [170, 64] },
+    { "id": "gif_recorder", "type": "backend", "label": "GIF 录制", "sublabel": "Rust gifrecorder", "pos": [660, 500], "size": [170, 64] }
+  ],
+  "connections": [
+    { "id": "user-main", "from": "user", "to": "main_app", "label": "热键" },
+    { "id": "main-screenshot", "from": "main_app", "to": "screenshot_window", "label": "打开截图" },
+    { "id": "screenshot-ocr", "from": "screenshot_window", "to": "ocr_manager", "label": "OCR" },
+    { "id": "ocr-translation", "from": "ocr_manager", "to": "translation_manager", "label": "识别文本" },
+    { "id": "translation-llm", "from": "translation_manager", "to": "llm_api", "label": "翻译 / 总结", "labelAt": [1065, 398] },
+    { "id": "main-clipboard", "from": "main_app", "to": "clipboard_manager", "label": "剪贴板", "fromSide": "top", "toSide": "bottom" },
+    { "id": "ocr-engines", "from": "ocr_manager", "to": "local_ocr_engines", "label": "OneOCR 优先", "fromSide": "top", "toSide": "bottom" },
+    { "id": "screenshot-long", "from": "screenshot_window", "to": "long_stitch", "label": "长截图", "fromSide": "bottom", "toSide": "top", "labelAt": [518, 398] },
+    { "id": "screenshot-gif", "from": "screenshot_window", "to": "gif_recorder", "label": "录制", "fromSide": "bottom", "toSide": "top" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "截图主链路", "items": ["热键触发 MainApp", "截图窗口负责选区与画布", "截图捕获使用 mss + Win32 API"] },
+    { "dot": "emerald", "title": "本地侧分支", "items": ["剪贴板历史保存到 SQLite", "长截图使用 Rust longstitch", "GIF 录制使用 Rust gifrecorder", "钉图窗口继承选区底图与图层"] },
+    { "dot": "rose", "title": "OCR 与 AI", "items": ["OneOCR 高精度优先", "Windows.Media.Ocr 自动回退", "PP-OCR 作为第二引擎", "OpenAI 兼容 API 负责翻译与总结"] }
+  ]
+}

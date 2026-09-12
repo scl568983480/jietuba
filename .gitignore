@@ -26,3 +26,4 @@ jietuba_pp/
 venv311/
 tmp/
 *.tmp
+.npm-cache/
