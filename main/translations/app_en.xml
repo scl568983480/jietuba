@@ -320,6 +320,58 @@ Replace it?</translation>
         <translation>Cursor Move Keys</translation>
     </message>
     <message>
+        <source>Screenshot Hotkey (Backup)</source>
+        <translation>Screenshot (Backup)</translation>
+    </message>
+    <message>
+        <source>Translation Hotkey (Backup)</source>
+        <translation>Translation (Backup)</translation>
+    </message>
+    <message>
+        <source>Clipboard Hotkey (Backup)</source>
+        <translation>Clipboard (Backup)</translation>
+    </message>
+    <message>
+        <source>Global Hotkey Conflict</source>
+        <translation>Global Hotkey Conflict</translation>
+    </message>
+    <message>
+        <source>The following hotkeys conflict:</source>
+        <translation>The following hotkeys conflict:</translation>
+    </message>
+    <message>
+        <source>Already used by "%1" in this settings.</source>
+        <translation>Already used by "%1" in this settings.</translation>
+    </message>
+    <message>
+        <source>Already occupied by another program or the system.</source>
+        <translation>Already occupied by another program or the system.</translation>
+    </message>
+    <message>
+        <source>Registration failed; the key may be occupied by another program.</source>
+        <translation>Registration failed; the key may be occupied by another program.</translation>
+    </message>
+    <message>
+        <source>Unsupported key combination.</source>
+        <translation>Unsupported key combination.</translation>
+    </message>
+    <message>
+        <source>This key cannot be registered as a global hotkey; choose a letter, digit or function key with modifiers.</source>
+        <translation>This key cannot be registered as a global hotkey; choose a letter, digit or function key with modifiers.</translation>
+    </message>
+    <message>
+        <source>Please resolve the conflicts above before saving.</source>
+        <translation>Please resolve the conflicts above before saving.</translation>
+    </message>
+    <message>
+        <source>These conflicts already exist in the saved settings; the conflicting shortcuts will not take effect.</source>
+        <translation>These conflicts already exist in the saved settings; the conflicting shortcuts will not take effect.</translation>
+    </message>
+    <message>
+        <source>This shortcut is widely used by other programs; it can be registered, but may be triggered together with that program.</source>
+        <translation>This shortcut is widely used by other programs; it can be registered, but may be triggered together with that program.</translation>
+    </message>
+    <message>
         <source>💡 Hint: Click the input box and press the desired key combination.</source>
         <translation>💡 Hint: Click the input box and press the desired key combination.</translation>
     </message>

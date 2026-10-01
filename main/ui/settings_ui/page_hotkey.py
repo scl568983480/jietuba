@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """快捷键设置页 — Fluent Design"""
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea,
@@ -14,6 +14,7 @@ from ui.fluent_lite.theme import ACCENT
 from .components import SettingCardGroup, WhiteCard, apply_theme_text_style
 from ..hotkey_edit import HotkeyEdit
 from ..inapp_key_edit import InAppKeyEdit
+from core.hotkey_conflicts import log_conflicts, validate_hotkey_fields
 
 
 # ── 应用内快捷键定义表（分组）──────────────────────────────
@@ -63,6 +64,73 @@ def _stack_page_height(row_count: int) -> int:
     return row_count * 46 + max(0, row_count - 1) * 8
 
 
+# ── 全局热键实时冲突检测 ──────────────────────────────────
+#
+# 顺序与实际注册顺序（main_app.update_hotkey）保持一致：
+# 截图 → 截图备用 → 翻译 → 翻译备用 → 剪贴板 → 剪贴板备用。
+
+def _global_hotkey_fields(dialog) -> list:
+    """收集全局热键输入框：[(attr_name, 显示名称, 当前文本), ...]"""
+    base_labels = (
+        ("Screenshot Hotkey", "Screenshot Hotkey (Backup)"),
+        ("Translation Hotkey", "Translation Hotkey (Backup)"),
+        ("Clipboard Hotkey", "Clipboard Hotkey (Backup)"),
+    )
+    fields = []
+    for attrs, labels in zip(
+        (
+            ("hotkey_input", "hotkey_input_2"),
+            ("translation_hotkey_edit", "translation_hotkey_edit_2"),
+            ("clipboard_hotkey_edit", "clipboard_hotkey_edit_2"),
+        ),
+        base_labels,
+    ):
+        for attr, label in zip(attrs, labels):
+            edit = getattr(dialog, attr, None)
+            if edit is None:
+                continue
+            fields.append((attr, dialog.tr(label), edit.text()))
+    return fields
+
+
+def _find_hotkey_edit(dialog, attr: str):
+    return getattr(dialog, attr, None)
+
+
+def _revalidate_global_hotkeys(dialog) -> dict:
+    """重新检测全部全局热键并刷新各自的 ✅ / ❌ 图标，返回检测结果。"""
+    fields = _global_hotkey_fields(dialog)
+    results = validate_hotkey_fields(fields, dialog.tr)
+    log_conflicts(results)
+
+    for attr, _label, _value in fields:
+        editor = _find_hotkey_edit(dialog, attr)
+        if editor is None:
+            continue
+        editor._apply_check_result(results.get(attr))
+    dialog._global_hotkey_checks = results
+    return results
+
+
+def _install_global_hotkey_validator(dialog) -> None:
+    """给六个全局热键输入框装上校验器，并立即检测一次。
+
+    校验器只回答「我自己是否可用」，但每次调用都会重算整组并刷新所有图标，
+    因此某一个框的改动会同步更新其它框的 ✅ / ❌。
+    检测结果缓存在 ``dialog._global_hotkey_checks``。
+    """
+    dialog._global_hotkey_checks = {}
+    for attr, _label, _value in _global_hotkey_fields(dialog):
+        editor = _find_hotkey_edit(dialog, attr)
+        if editor is None:
+            continue
+        editor.set_validator(
+            lambda _text, a=attr: _revalidate_global_hotkeys(dialog).get(a)
+        )
+
+    _revalidate_global_hotkeys(dialog)
+
+
 def create_hotkey_page(dialog) -> QWidget:
     """创建快捷键设置页面 — Fluent Design"""
     scroll = QScrollArea()
@@ -93,14 +161,14 @@ def create_hotkey_page(dialog) -> QWidget:
 
     ss_v = QVBoxLayout()
     ss_v.setSpacing(5)
-    dialog.hotkey_input = HotkeyEdit()
+    dialog.hotkey_input = HotkeyEdit(defer_check=True)
     dialog.hotkey_input.setText(dialog.current_hotkey)
     dialog.hotkey_input.setPlaceholderText(dialog.tr("e.g.: ctrl+shift+a"))
     dialog.hotkey_input.setFixedWidth(200)
     dialog.hotkey_input.setStyleSheet(input_style)
     ss_v.addWidget(dialog.hotkey_input)
 
-    dialog.hotkey_input_2 = HotkeyEdit()
+    dialog.hotkey_input_2 = HotkeyEdit(defer_check=True)
     dialog.hotkey_input_2.setText(dialog.config_manager.get_hotkey_2())
     dialog.hotkey_input_2.setPlaceholderText(dialog.tr("e.g.: ctrl+shift+a"))
     dialog.hotkey_input_2.setFixedWidth(200)
@@ -123,14 +191,14 @@ def create_hotkey_page(dialog) -> QWidget:
 
     cb_v = QVBoxLayout()
     cb_v.setSpacing(5)
-    dialog.clipboard_hotkey_edit = HotkeyEdit()
+    dialog.clipboard_hotkey_edit = HotkeyEdit(defer_check=True)
     dialog.clipboard_hotkey_edit.setText(dialog.config_manager.get_clipboard_hotkey())
     dialog.clipboard_hotkey_edit.setPlaceholderText(dialog.tr("e.g.: ctrl+shift+a"))
     dialog.clipboard_hotkey_edit.setFixedWidth(200)
     dialog.clipboard_hotkey_edit.setStyleSheet(input_style)
     cb_v.addWidget(dialog.clipboard_hotkey_edit)
 
-    dialog.clipboard_hotkey_edit_2 = HotkeyEdit()
+    dialog.clipboard_hotkey_edit_2 = HotkeyEdit(defer_check=True)
     dialog.clipboard_hotkey_edit_2.setText(dialog.config_manager.get_clipboard_hotkey_2())
     dialog.clipboard_hotkey_edit_2.setPlaceholderText(dialog.tr("e.g.: ctrl+shift+a"))
     dialog.clipboard_hotkey_edit_2.setFixedWidth(200)
@@ -153,7 +221,7 @@ def create_hotkey_page(dialog) -> QWidget:
 
     tr_v = QVBoxLayout()
     tr_v.setSpacing(5)
-    dialog.translation_hotkey_edit = HotkeyEdit()
+    dialog.translation_hotkey_edit = HotkeyEdit(defer_check=True)
     dialog.translation_hotkey_edit.setText(
         dialog.config_manager.get_translation_hotkey()
     )
@@ -164,7 +232,7 @@ def create_hotkey_page(dialog) -> QWidget:
     dialog.translation_hotkey_edit.setStyleSheet(input_style)
     tr_v.addWidget(dialog.translation_hotkey_edit)
 
-    dialog.translation_hotkey_edit_2 = HotkeyEdit()
+    dialog.translation_hotkey_edit_2 = HotkeyEdit(defer_check=True)
     dialog.translation_hotkey_edit_2.setText(
         dialog.config_manager.get_translation_hotkey_2()
     )
@@ -261,7 +329,7 @@ def create_hotkey_page(dialog) -> QWidget:
     tab_card.setFixedHeight(max(screenshot_h, pin_h) + 80)
     grp_inapp.addSettingCard(tab_card)
 
-    # 冲突检测
+    # 同组内冲突检测（弹窗询问是否替换；应用内快捷键不做系统探测）
     for cfg_key, edit in dialog._inapp_edits.items():
         edit.textChanged.connect(
             lambda text, k=cfg_key: _on_shortcut_changed(
@@ -278,6 +346,9 @@ def create_hotkey_page(dialog) -> QWidget:
     )
     hint.setStyleSheet("padding: 5px;")
     layout.addWidget(hint)
+
+    # 全局热键：实时冲突检测（✅ / ❌），未完成输入不打扰用户
+    _install_global_hotkey_validator(dialog)
 
     layout.addStretch()
     scroll.setWidget(view)

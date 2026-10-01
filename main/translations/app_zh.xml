@@ -332,6 +332,58 @@ Replace it?</source>
         <translation>💡 提示: 点击输入框后按下想要的快捷键组合。</translation>
     </message>
     <message>
+        <source>Screenshot Hotkey (Backup)</source>
+        <translation>截图备用快捷键</translation>
+    </message>
+    <message>
+        <source>Translation Hotkey (Backup)</source>
+        <translation>翻译备用快捷键</translation>
+    </message>
+    <message>
+        <source>Clipboard Hotkey (Backup)</source>
+        <translation>剪贴板备用快捷键</translation>
+    </message>
+    <message>
+        <source>Global Hotkey Conflict</source>
+        <translation>全局快捷键冲突</translation>
+    </message>
+    <message>
+        <source>The following hotkeys conflict:</source>
+        <translation>以下快捷键存在冲突：</translation>
+    </message>
+    <message>
+        <source>Already used by "%1" in this settings.</source>
+        <translation>与设置中的「%1」重复。</translation>
+    </message>
+    <message>
+        <source>Already occupied by another program or the system.</source>
+        <translation>已被其它程序或系统占用。</translation>
+    </message>
+    <message>
+        <source>Registration failed; the key may be occupied by another program.</source>
+        <translation>注册失败，可能已被其它程序占用。</translation>
+    </message>
+    <message>
+        <source>Unsupported key combination.</source>
+        <translation>不支持的快捷键组合。</translation>
+    </message>
+    <message>
+        <source>This key cannot be registered as a global hotkey; choose a letter, digit or function key with modifiers.</source>
+        <translation>该按键无法注册为全局热键，请改用「修饰键 + 字母 / 数字 / 功能键」的组合。</translation>
+    </message>
+    <message>
+        <source>Please resolve the conflicts above before saving.</source>
+        <translation>请先修改上方「全局快捷键」中冲突的快捷键后再保存。</translation>
+    </message>
+    <message>
+        <source>These conflicts already exist in the saved settings; the conflicting shortcuts will not take effect.</source>
+        <translation>这些冲突在已保存的设置中就已存在，冲突的快捷键将无法生效。</translation>
+    </message>
+    <message>
+        <source>This shortcut is widely used by other programs; it can be registered, but may be triggered together with that program.</source>
+        <translation>这是其它软件的常用快捷键：可以注册，但按下时可能同时触发该程序的功能。</translation>
+    </message>
+    <message>
         <source>💡 Hint: You can use modifier keys like Ctrl, Shift, Alt.</source>
         <translation>💡 提示: 可以使用 Ctrl, Shift, Alt 等修饰键组合。</translation>
     </message>

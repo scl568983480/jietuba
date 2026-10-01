@@ -1,9 +1,10 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 应用内快捷键录入框
 
 与 HotkeyEdit 的区别：
-- 不检查系统热键冲突（不显示 ✅/❌）
+- 不做任何冲突探测：应用内快捷键只在截图 / 钉图窗口内生效，
+  不受系统或其它软件影响，因此不检查系统占用、也不做常用键预警
 - 允许单个字母键（如 "C"）作为合法输入
 - 允许 Shift+字母 组合（如 "Shift+C"）
 - 样式更紧凑
@@ -101,4 +102,3 @@ class InAppKeyEdit(QLineEdit):
             return f"F{key - Qt.Key.Key_F1 + 1}"
         text = QKeySequence(key).toString(QKeySequence.SequenceFormat.PortableText)
         return text if text else ""
- 

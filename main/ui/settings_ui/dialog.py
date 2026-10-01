@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 设置对话框主类 — Fluent 风格
 
@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
     QFrame, QFileDialog,
 )
 from PySide6.QtCore import QSize, Qt, Signal
-from ui.dialogs import show_info_dialog
+from ui.dialogs import show_info_dialog, show_warning_dialog
 from PySide6.QtGui import QColor, QFont, QIcon
 
 from ui.fluent_lite import (
@@ -803,11 +803,126 @@ class SettingsDialog(FrostedFramelessDialog):
             self.clipboard_history_limit_spin.setValue(defaults["clipboard_history_limit"])
 
     # ================================================================
+    # 全局热键冲突检测
+    # ================================================================
+
+    def _collect_global_hotkey_checks(self) -> dict:
+        """检测六个全局热键输入框，返回 {输入框标识: HotkeyCheck}。"""
+        from .page_hotkey import _revalidate_global_hotkeys
+
+        return _revalidate_global_hotkeys(self)
+
+    def _global_hotkey_conflicts(self) -> list:
+        """返回当前存在冲突的全局热键检测结果列表。"""
+        try:
+            results = self._collect_global_hotkey_checks()
+        except Exception as e:
+            log_exception(e, "保存前检测全局热键冲突")
+            return []
+        return [c for c in results.values() if not c.available]
+
+    def _saved_hotkey_values(self) -> dict:
+        """读取配置中已保存的全局热键，用于区分「本次修改引入的冲突」。"""
+        cfg = self.config_manager
+        try:
+            return {
+                "hotkey_input": cfg.get_hotkey(),
+                "hotkey_input_2": cfg.get_hotkey_2(),
+                "translation_hotkey_edit": cfg.get_translation_hotkey(),
+                "translation_hotkey_edit_2": cfg.get_translation_hotkey_2(),
+                "clipboard_hotkey_edit": cfg.get_clipboard_hotkey(),
+                "clipboard_hotkey_edit_2": cfg.get_clipboard_hotkey_2(),
+            }
+        except Exception as e:
+            log_exception(e, "读取已保存的全局热键")
+            return {}
+
+    def _split_conflicts(self, conflicts: list):
+        """把冲突分成「本次修改引入」与「原有冲突」两组。
+
+        冲突是成对的（A 与 B 撞车），只要 A、B 中任意一个相对已保存配置被改过，
+        就算本次修改引入的冲突 → 必须修正，否则拒绝保存；
+        用户完全没碰过的历史冲突 → 只提示，不阻塞其它设置的保存。
+        """
+        saved = self._saved_hotkey_values()
+        from core.hotkey_utils import normalize_hotkey
+
+        edited_norms = set()      # 被改过的热键（含新值与旧值）
+        for key, value in saved.items():
+            old_norm = normalize_hotkey(value)
+            editor = getattr(self, key, None)
+            new_norm = normalize_hotkey(editor.text() if editor is not None else "")
+            if old_norm != new_norm:
+                edited_norms.add(old_norm)
+                edited_norms.add(new_norm)
+
+        new_conflicts, pre_existing = [], []
+        for item in conflicts:
+            if normalize_hotkey(item.value) in edited_norms:
+                new_conflicts.append(item)
+            else:
+                pre_existing.append(item)
+        return new_conflicts, pre_existing
+
+    def _format_hotkey_conflicts(self, conflicts: list, blocking: bool) -> str:
+        """把冲突结果拼成弹窗正文。"""
+        lines = [self.tr("The following hotkeys conflict:")]
+        for item in conflicts:
+            detail = item.detail or self.tr(
+                "Already occupied by another program or the system."
+            )
+            lines.append(f"• {item.label}（{item.value}）: {detail}")
+        lines.append("")
+        if blocking:
+            lines.append(
+                self.tr("Please resolve the conflicts above before saving.")
+            )
+        else:
+            lines.append(
+                self.tr(
+                    "These conflicts already exist in the saved settings; "
+                    "the conflicting shortcuts will not take effect."
+                )
+            )
+        return "\n".join(lines)
+
+    def _warn_hotkey_conflicts(self, conflicts: list, blocking: bool) -> None:
+        """显示冲突弹窗。"""
+        show_warning_dialog(
+            self,
+            self.tr("Global Hotkey Conflict"),
+            self._format_hotkey_conflicts(conflicts, blocking),
+        )
+
+    def _check_global_hotkey_conflicts_before_save(self) -> bool:
+        """保存前校验全局热键。
+
+        Returns:
+            ``True`` 表示可以继续保存，``False`` 表示必须停下来让用户修正。
+        """
+        conflicts = self._global_hotkey_conflicts()
+        if not conflicts:
+            return True
+
+        new_conflicts, pre_existing = self._split_conflicts(conflicts)
+        if new_conflicts:
+            self._warn_hotkey_conflicts(new_conflicts, blocking=True)
+            return False
+
+        # 只是历史遗留冲突：提示但仍然保存，避免其它设置被卡住
+        self._warn_hotkey_conflicts(pre_existing, blocking=False)
+        return True
+
+    # ================================================================
     # 保存（accept）
     # ================================================================
 
     def accept(self):
         """保存所有设置"""
+        # 0. 全局快捷键冲突校验：本次修改引入的冲突会阻止保存并弹窗列出
+        if not self._check_global_hotkey_conflicts_before_save():
+            return
+
         # 防止保存过程中（比如语言切换触发的窗口重建）触发未保存确认弹窗
         self._skip_unsaved_close_prompt = True
 

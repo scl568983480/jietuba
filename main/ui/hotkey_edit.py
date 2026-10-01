@@ -1,4 +1,4 @@
-﻿"""快捷键录入框组件 - 系统快捷键冲突检测
+"""快捷键录入框组件 - 系统快捷键冲突检测
 
 用户按下按键时实时检测是否与系统全局快捷键冲突，
 提供视觉反馈，防止注册冲突的快捷键。
@@ -93,8 +93,13 @@ class HotkeyEdit(QWidget):
     """
     A composite widget that contains a QLineEdit for capturing hotkeys
     and a validation status indicator (Check/X icon).
+
+    状态图标（✅ / ❌）由可注入的校验器决定：
+    - 未注入时，使用 ``HotkeySystem.check_hotkey_availability`` 检测系统占用；
+    - 设置页注入 ``hotkey_validator``（见 ``core.hotkey_conflicts``），
+      同时检测「与本设置内其它热键重复」和「被其它程序占用」。
     """
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, defer_check: bool = False):
         super().__init__(parent)
         self.layout = QHBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
@@ -112,6 +117,11 @@ class HotkeyEdit(QWidget):
         
         from core.shortcut_manager import HotkeySystem
         self.hotkey_system = HotkeySystem()
+
+        # 可选的校验器：callable(hotkey_str) -> HotkeyCheck（或 None）
+        self._validator = None
+        # 需要整组一起检测时先 defer_check=True，等装好校验器再统一检测
+        self._validator_pending = bool(defer_check)
         
         # Debounce timer for checking availability
         self.check_timer = QTimer(self)
@@ -121,6 +131,14 @@ class HotkeyEdit(QWidget):
 
         # Connect internal edit signals
         self.edit.textChanged.connect(self._on_text_changed)
+
+    def set_validator(self, validator):
+        """注入校验器：``callable(hotkey: str) -> HotkeyCheck | None``。
+
+        传 ``None`` 恢复默认的系统占用检测。
+        """
+        self._validator = validator
+        self._validator_pending = False
 
     def setText(self, text):
         self.edit.setText(text)
@@ -147,24 +165,70 @@ class HotkeyEdit(QWidget):
             self.check_timer.start()
         else:
             self.status_lbl.clear()
+            self.status_lbl.setToolTip("")
 
     def _check_availability_now(self):
         hotkey = self.text().strip()
         if not hotkey or hotkey.endswith("+"):
              self.status_lbl.clear()
+             self.status_lbl.setToolTip("")
              return
+
+        if self._validator is not None:
+            self._apply_check_result(self._validator(hotkey))
+            return
+
+        # 页面构建期间（校验器尚未注入）：留空图标，待装好后统一检测，
+        # 避免每填一个框就整组重算一次。
+        if self._validator_pending:
+            self.status_lbl.clear()
+            self.status_lbl.setToolTip("")
+            return
 
         # Check availability using our HotkeySystem
         is_available = self.hotkey_system.check_hotkey_availability(hotkey)
 
         if is_available:
-            self.status_lbl.setText("✅")
-            self.status_lbl.setToolTip("Hotkey is available")
-            self.status_lbl.setStyleSheet("color: green; font-weight: bold;")
+            self._set_status_ok()
         else:
-            self.status_lbl.setText("❌") 
-            self.status_lbl.setToolTip("Hotkey is already in use by system or other app")
-            self.status_lbl.setStyleSheet("color: red; font-weight: bold;")
+            self._set_status_error(
+                "Hotkey is already in use by system or other app"
+            )
+
+    def _apply_check_result(self, check):
+        """根据 ``HotkeyCheck`` 结果刷新图标与提示。
+
+        三种状态：✅ 可用 / ⚠️ 可用但命中常用快捷键 / ❌ 冲突。
+        """
+        if check is None:
+            self.status_lbl.clear()
+            self.status_lbl.setToolTip("")
+            return
+        if not check.available:
+            self._set_status_error(check.detail)
+        elif getattr(check, "warning", ""):
+            self._set_status_warning(check.warning)
+        else:
+            self._set_status_ok(check.detail)
+
+    def _set_status_ok(self, tooltip: str = ""):
+        self.status_lbl.setText("✅")
+        self.status_lbl.setToolTip(tooltip or "Hotkey is available")
+        self.status_lbl.setStyleSheet("color: green; font-weight: bold;")
+
+    def _set_status_warning(self, tooltip: str = ""):
+        self.status_lbl.setText("⚠️")
+        self.status_lbl.setToolTip(
+            tooltip or "Hotkey is available, but widely used by other programs"
+        )
+        self.status_lbl.setStyleSheet("color: #E8A33D; font-weight: bold;")
+
+    def _set_status_error(self, tooltip: str = ""):
+        self.status_lbl.setText("❌")
+        self.status_lbl.setToolTip(
+            tooltip or "Hotkey is already in use by system or other app"
+        )
+        self.status_lbl.setStyleSheet("color: red; font-weight: bold;")
 
 
 class _HotkeyLineEdit(QLineEdit):

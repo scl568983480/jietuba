@@ -1,4 +1,4 @@
-﻿"""应用主程序 - 系统托盘集成和全局快捷键管理
+"""应用主程序 - 系统托盘集成和全局快捷键管理
 
 负责一次性初始化和管理应用的生命周期，包括系统托盘图标、快捷键钩子、
 多窗口实例管理和启动流程。
@@ -243,6 +243,11 @@ class MainApp(QObject):
         )
         
         failed_hotkeys = []  # 收集注册失败的热键
+        # 记录本轮注册结果，供设置界面区分「本程序注册失败」与「本次被占用」
+        from core.hotkey_registry import (
+            clear_registration_failures, record_registration_failure,
+        )
+        clear_registration_failures()
         
         # 注册截图热键
         hotkey = self.config_manager.get_hotkey()
@@ -251,6 +256,7 @@ class MainApp(QObject):
                 log_info(f"截图热键已注册: {hotkey}", "Hotkey")
             else:
                 log_warning(f"截图热键注册失败: {hotkey}", "Hotkey")
+                record_registration_failure(hotkey)
                 failed_hotkeys.append((self.tr("Screenshot"), hotkey))
 
         # 注册截图备用热键
@@ -260,6 +266,7 @@ class MainApp(QObject):
                 log_info(f"截图备用热键已注册: {hotkey_2}", "Hotkey")
             else:
                 log_warning(f"截图备用热键注册失败: {hotkey_2}", "Hotkey")
+                record_registration_failure(hotkey_2)
                 failed_hotkeys.append((self.tr("Screenshot (2)"), hotkey_2))
 
         # 注册统一翻译热键：有选中文本时显示小窗，否则打开完整输入窗口。
@@ -276,6 +283,7 @@ class MainApp(QObject):
                 log_info(f"智能翻译热键已注册: {translation_hotkey}", "Hotkey")
             else:
                 log_warning(f"智能翻译热键注册失败: {translation_hotkey}", "Hotkey")
+                record_registration_failure(translation_hotkey)
                 failed_hotkeys.append((label, translation_hotkey))
         
         # 注册剪切板热键（如果剪切板功能启用）
@@ -286,6 +294,7 @@ class MainApp(QObject):
                     log_info(f"剪贴板热键已注册: {clipboard_hotkey}", "Hotkey")
                 else:
                     log_warning(f"剪贴板热键注册失败: {clipboard_hotkey}", "Hotkey")
+                    record_registration_failure(clipboard_hotkey)
                     failed_hotkeys.append((self.tr("Clipboard"), clipboard_hotkey))
             
             # 注册剪贴板备用热键
@@ -295,6 +304,7 @@ class MainApp(QObject):
                     log_info(f"剪贴板备用热键已注册: {clipboard_hotkey_2}", "Hotkey")
                 else:
                     log_warning(f"剪贴板备用热键注册失败: {clipboard_hotkey_2}", "Hotkey")
+                    record_registration_failure(clipboard_hotkey_2)
                     failed_hotkeys.append((self.tr("Clipboard (2)"), clipboard_hotkey_2))
 
             # 额外尝试注册 Win+V，失败也不提示
