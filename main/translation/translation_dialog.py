@@ -359,6 +359,11 @@ class TranslationDialog(FramelessWindow):
         config = get_tool_settings_manager()
         saved_target_lang = config.get_app_setting("translation_target_lang", "")
         self.target_lang = saved_target_lang or target_lang or "ZH"
+        # 语言框里的目标语言是否是用户手动选的（False 表示还是默认值，
+        # 此时允许按源文语种自动选择目标语言）。
+        self.target_lang_selected_by_user = bool(saved_target_lang)
+        # 程序化写回语言框时抑制 currentIndexChanged 的"用户选择"语义。
+        self._setting_target_lang = False
         self._is_on_top = TranslationDialog._stay_on_top
         self._mode = "translate"  # "translate" 或 "summary"
 
@@ -637,12 +642,18 @@ class TranslationDialog(FramelessWindow):
             self.target_edit.setPlainText(f"{prefix} {self._last_error_message}")
 
     def _on_target_lang_changed(self, _index: int) -> None:
+        # 程序化写回语言框（弹窗首次打开自动选定的目标语言）不算用户选择。
+        if self._setting_target_lang:
+            return
         target_lang = self.get_target_lang()
-        if target_lang:
-            config = get_tool_settings_manager()
-            config.set_app_setting("translation_target_lang", target_lang)
-            self.target_lang = target_lang
-            log_debug(f"Target language saved: {target_lang}", "Translation")
+        if not target_lang:
+            return
+        # 语言框发生变化即代表用户手动选定，此后不再按源文语种自动选语言。
+        self.target_lang_selected_by_user = True
+        config = get_tool_settings_manager()
+        config.set_app_setting("translation_target_lang", target_lang)
+        self.target_lang = target_lang
+        log_debug(f"Target language saved: {target_lang}", "Translation")
 
     def _on_toggle_pin(self, checked: bool) -> None:
         self._is_on_top = checked
@@ -770,6 +781,24 @@ class TranslationDialog(FramelessWindow):
     def get_target_lang(self) -> str:
         return str(self.target_language.currentData())
 
+    def set_target_lang(self, lang_code: str | None) -> None:
+        """程序化设置目标语言，不视为"用户手动选择"。
+
+        用于弹窗首次打开时把按源文语种自动选定的目标语言写回语言框；
+        用户在语言框里自己改动时走 ``_on_target_lang_changed``。
+        """
+        if not lang_code:
+            return
+        self._setting_target_lang = True
+        try:
+            self._set_combo_data(self.target_language, lang_code, lang_code)
+            current = self.target_language.currentData()
+            if current:
+                self.target_lang = current
+        finally:
+            self._setting_target_lang = False
+        self.target_lang_selected_by_user = False
+
     def update_content(
         self,
         text: str,
@@ -782,7 +811,7 @@ class TranslationDialog(FramelessWindow):
             self.source_lang = source_lang
             self._set_combo_data(self.source_language, source_lang, "auto")
         if target_lang:
-            self._set_combo_data(self.target_language, target_lang, self.get_target_lang())
+            self.set_target_lang(target_lang)
 
     def set_backend_badge(self, text: str, configured: bool = True) -> None:
         self._backend_configured = configured

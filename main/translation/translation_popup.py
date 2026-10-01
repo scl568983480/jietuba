@@ -242,6 +242,9 @@ class TranslationPopup(QWidget):
         self._backend_ready = True
         self._loading_step = 0
         self._target_lang = "ZH"  # 当前目标语言
+        # True 表示当前目标语言是按源文语种自动选的（用户还没手动改过），
+        # 此时外层按源文重新判定即可覆盖；用户改过之后以用户选择为准。
+        self.auto_target_lang = True
         self._esc_hotkey_registered = False  # 仅在小窗可见时临时占用 ESC 热键
         self._click_watcher = None  # 点击窗口外关闭用的全局鼠标观察器
         self._click_watcher_armed = False  # 观察器仅在小窗可见期间启用
@@ -339,7 +342,7 @@ class TranslationPopup(QWidget):
         return view
 
     def _show_lang_menu(self) -> None:
-        """显示语言选择菜单"""
+        """显示语言选择菜单（菜单里的勾选代表"配置里的目标语言"）"""
         menu = QMenu(self)
         menu.setObjectName("popupLangMenu")
         
@@ -363,7 +366,9 @@ class TranslationPopup(QWidget):
         if action:
             new_lang = action.data()
             if new_lang != self._target_lang:
+                # 用户手动改语言 = 改配置里的目标语言，本次弹窗内方向也以它为准。
                 self._target_lang = new_lang
+                self.auto_target_lang = False
                 self.lang_button.setText(TRANSLATION_LANGUAGES[new_lang])
                 self.target_lang_changed.emit(new_lang)
                 # 如果有原文，立即重新翻译到新语言
@@ -371,10 +376,19 @@ class TranslationPopup(QWidget):
                     self._enter_loading()
                     self.manual_translate_requested.emit(self._source_text)
 
-    def set_target_lang(self, lang_code: str) -> None:
-        """设置目标语言（外部调用）"""
+    def display_target_lang(self) -> str:
+        """语言框上显示的目标语言（= 配置里的目标语言）。"""
+        return self._target_lang
+
+    def set_target_lang(self, lang_code: str, *, auto: bool = True) -> None:
+        """设置语言框显示的目标语言（外部调用，用于同步配置语言）。
+
+        ``auto=True`` 表示这是配置里的目标语言，用户可以覆盖；
+        ``auto=False`` 表示本次弹窗已被用户手动指定，方向以它为准。
+        """
         if lang_code in TRANSLATION_LANGUAGES:
             self._target_lang = lang_code
+            self.auto_target_lang = auto
             self.lang_button.setText(TRANSLATION_LANGUAGES[lang_code])
 
     def show_popup(

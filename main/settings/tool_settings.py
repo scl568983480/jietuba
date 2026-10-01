@@ -1,4 +1,4 @@
-﻿"""
+"""
 统一设置管理器 - 集中管理所有默认配置
 
 本文件是整个应用的配置中心，包含：
@@ -1039,6 +1039,16 @@ class ToolSettingsManager(QObject):
     def set_translation_target_lang(self, value: str):
         """设置翻译目标语言"""
         self.qsettings.setValue("app/translation_target_lang", value)
+
+    def has_saved_translation_target_lang(self) -> bool:
+        """用户是否在弹窗里手动选过翻译目标语言（区别于"跟随系统语言"的默认值）。"""
+        return bool(
+            self.qsettings.value("app/translation_target_lang", "", type=str)
+        )
+
+    def clear_translation_target_lang(self):
+        """清空手动目标语言，回到"按源文自动选择 + 跟随系统语言"的默认行为。"""
+        self.qsettings.setValue("app/translation_target_lang", "")
 
     def get_summary_target_lang(self) -> str:
         """获取总结目标语言，未单独设置时跟随翻译目标语言。"""

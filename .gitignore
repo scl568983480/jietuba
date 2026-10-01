@@ -14,9 +14,10 @@ pip_stage*.log
 build/
 target/
 dist/
-jietuba_pp.spec
-jietuba_pp.exe
-jietuba_pp/
+dist_build/
+jietuba.spec
+jietuba.exe
+jietuba/
 
 # ─────────────────────────────────────────────
 # 临时 / 工具目录
@@ -27,3 +28,4 @@ venv311/
 tmp/
 *.tmp
 .npm-cache/
+.acl-recovery/

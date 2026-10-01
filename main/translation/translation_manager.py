@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 translation_manager.py - 翻译窗口单例管理器
 
@@ -30,6 +30,7 @@ from PySide6.QtCore import QCoreApplication, QObject, QPoint, QTimer, Signal
 
 from core import log_info, log_debug, log_error, log_warning
 from core.ui_theme import get_ui_theme
+from .language_detection import describe_languages, translation_direction
 
 
 class TranslationManager(QObject):
@@ -55,6 +56,10 @@ class TranslationManager(QObject):
         self._request_targets = {}
         self._active_target = "dialog"
         self._target_lang = "ZH"
+        # 小窗本次会话是否被用户手动指定过目标语言
+        self._popup_user_target = False
+        # 小窗是否正处于一次取词会话中（用于区分"同一会话重译"与"新一次取词"）
+        self._popup_session_active = False
         self._summary_mode = False  # 当前弹窗是否处于「总结」模式
         self._api_key = ""
         self._use_pro = False
@@ -122,7 +127,59 @@ class TranslationManager(QObject):
             self._dialog.set_theme(theme_name)
         if self._is_popup_valid():
             self._popup.set_theme(theme_name)
-    
+
+    # ── 目标语言：配置语言 / 显示语言 / 翻译方向 ────────────────────
+    # 三者是分开的概念，别再混在一起：
+    #   * 配置语言：设置项 translation_target_lang（空则跟随系统语言）。
+    #     只有用户手动改语言才会变，自动判断永远不写它。
+    #   * 显示语言：弹窗语言框上显示的文字，始终等于配置语言。
+    #   * 翻译方向：本次真正发给翻译引擎的 target。用户本次手动选过 → 用用户选的；
+    #     否则按源文判断（全是中文→英语，其它/混排→中文），判不出来 → 配置语言。
+    #
+    # 一次"弹窗会话"= 一次划词取词 / 一次截图，从取词到弹窗关闭；用户会话期间
+    # 手动改语言只在这一次会话内有效，下一次取词重新按源文判断。
+    def configured_target_lang(self) -> str:
+        """配置里的目标语言（用户设置；没设过则跟随系统语言）。"""
+        try:
+            from settings import get_tool_settings_manager
+
+            return get_tool_settings_manager().get_translation_target_lang() or "ZH"
+        except Exception as exc:
+            log_warning(f"读取目标语言设置失败: {exc}", "Translation")
+            return "ZH"
+
+    def _direction_for(self, source_text: str) -> str:
+        """按源文语种给出翻译方向；判不出语种时回退到配置语言。"""
+        direction = translation_direction(source_text)
+        if direction:
+            return direction
+        return self.configured_target_lang()
+
+    def _log_direction(self, target_lang: str, source_text: str) -> None:
+        log_debug(
+            f"翻译方向={target_lang} 配置语言={self.configured_target_lang()} "
+            f"源文={describe_languages(source_text)}",
+            "Translation",
+        )
+
+    def _dialog_user_selected_target_lang(self) -> bool:
+        """翻译弹窗里的目标语言是否被用户手动改过。"""
+        if not self._is_dialog_valid():
+            return False
+        return bool(getattr(self._dialog, "target_lang_selected_by_user", False))
+
+    def _popup_user_selected_target_lang(self) -> bool:
+        """小窗本次是否被用户手动指定过目标语言。"""
+        return self._popup_user_target
+
+    def _apply_popup_target_lang(self, display_lang: str) -> None:
+        """把配置语言写进小窗语言框（界面显示用）。
+
+        自动判断出来的方向不进语言框：语言框始终显示配置语言。
+        """
+        popup = self._ensure_popup()
+        popup.set_target_lang(display_lang, auto=not self._popup_user_target)
+
     @classmethod
     def instance(cls) -> 'TranslationManager':
         """获取单例实例"""
@@ -194,15 +251,23 @@ class TranslationManager(QObject):
             self._use_pro = use_pro
         self._split_sentences = split_sentences
         self._preserve_formatting = preserve_formatting
+
+        # 方向：用户在弹窗里手动选过语言 → 用用户选的；否则按源文语种判断。
+        # 配置语言不会被这里改写，语言框也照旧显示配置语言。
+        if self._dialog_user_selected_target_lang():
+            target_lang = self._dialog.get_target_lang() or self.configured_target_lang()
+        else:
+            target_lang = self._direction_for(text or "")
+        self._log_direction(target_lang, text or "")
         self._target_lang = target_lang
-        
+
         # 停止之前的翻译线程
         self._stop_current_thread()
         self._activate_surface("dialog")
-        
+
         # 创建或复用窗口
         self._ensure_dialog(text, position, source_lang, target_lang)
-        
+
         # 如果有文本，启动翻译；否则只显示空窗口
         if text and text.strip():
             if not self._backend_ready():
@@ -210,16 +275,11 @@ class TranslationManager(QObject):
                 if self._is_dialog_valid():
                     self._dialog.set_translation_error(self._api_key_error())
                 return
-            log_info(f"开始翻译: {text[:50]}...", "Translation")
+            log_info(f"开始翻译: target={target_lang} 原文={text[:50]}...", "Translation")
             self.translation_started.emit(text)
-            
-            # 使用窗口中用户选择的目标语言，而不是传入的默认值
-            actual_target_lang = target_lang
-            if self._is_dialog_valid():
-                actual_target_lang = self._dialog.get_target_lang() or target_lang
-            
+
             self._start_translation(
-                text, actual_target_lang, source_lang,
+                text, target_lang, source_lang,
                 result_target="dialog",
             )
         else:
@@ -271,21 +331,40 @@ class TranslationManager(QObject):
         self._use_pro = bool(use_pro)
         self._split_sentences = split_sentences
         self._preserve_formatting = preserve_formatting
-        self._target_lang = target_lang
 
         self._stop_current_thread()
         self._activate_surface("compact")
+        # 上一次弹窗会话结束（用户改语言/改文字触发的重译走别的入口），
+        # 所以到这里说明这是一次新的划词取词：清掉上次会话的手动选择。
+        if not self._popup_session_active:
+            self._popup_user_target = False
+        self._popup_session_active = False
+        configured = self.configured_target_lang()
         popup = self._ensure_popup()
-        popup.set_target_lang(target_lang)  # 同步目标语言
+        # 语言框只显示配置语言；自动判断出来的方向不进语言框。
+        popup.set_target_lang(
+            configured, auto=not self._popup_user_selected_target_lang()
+        )
+        # 方向：本次会话里用户手动选过 → 用用户选的；否则按源文语种判断。
+        if self._popup_user_selected_target_lang():
+            target_lang = self._target_lang
+        else:
+            target_lang = self._direction_for(text)
+        self._log_direction(target_lang, text)
+        self._target_lang = target_lang
         popup.set_backend_status(self._backend_name(), self._backend_ready())
         # 划词翻译不抢焦点，否则原应用的选区和光标会丢失。
         popup.show_popup(text, position, activate=False)
+        # 取词完成：现在开始的都是"这一次取词"的后续动作（用户改语言触发的重译、
+        # 或弹窗内文字触发的重译），它们继续沿用手动选择；
+        # 下一次 translate_compact() 会被视为新的取词。
+        self._popup_session_active = True
 
         if not self._backend_ready():
             popup.show_error(self._api_key_error())
             return
 
-        log_info(f"开始划词翻译: {text[:50]}...", "Translation")
+        log_info(f"开始划词翻译: target={target_lang} 原文={text[:50]}...", "Translation")
         self.translation_started.emit(text)
         self._start_translation(
             text, target_lang, source_lang,
@@ -314,12 +393,17 @@ class TranslationManager(QObject):
         self._use_pro = bool(use_pro)
         self._split_sentences = split_sentences
         self._preserve_formatting = preserve_formatting
-        self._target_lang = target_lang
+        # 新一次弹窗：开新会话，清掉上次会话的手动选择，回到配置语言。
+        self._popup_session_active = True
+        self._popup_user_target = False
+        configured = self.configured_target_lang()
+        self._target_lang = configured
 
         self._stop_current_thread()
         self._activate_surface("compact")
         popup = self._ensure_popup()
-        popup.set_target_lang(target_lang)  # 同步目标语言
+        # 空输入框没有源文可判语种 → 用配置语言，语言框显示同一个值。
+        self._apply_popup_target_lang(configured)
         popup.set_backend_status(self._backend_name(), self._backend_ready())
         # 没有待译文本，直接把焦点交给输入框。
         popup.show_popup("", position, activate=True)
@@ -354,16 +438,25 @@ class TranslationManager(QObject):
         text = (text or "").strip()
         if not text:
             return
+        # 这次请求由弹窗内动作触发（用户改语言重译 / 编辑原文后重译），
+        # 属于"当前这一次取词"的延续；处理完就结束本次会话，
+        # 使下一次 translate_compact() 重新按源文判断方向。
+        self._popup_session_active = False
         self._stop_current_thread()
         self._activate_surface("compact")
         if not self._backend_ready():
             if self._is_popup_valid():
                 self._popup.show_error(self._api_key_error())
             return
-        log_info(f"开始小窗输入翻译: {text[:50]}...", "Translation")
+        # 方向：本次会话里用户手动选过 → 用用户选的；否则按输入的文字判断。
+        if self._popup_user_selected_target_lang():
+            target_lang = self._target_lang
+        else:
+            target_lang = self._direction_for(text)
+        self._log_direction(target_lang, text)
+        self._target_lang = target_lang
+        log_info(f"开始小窗输入翻译: target={target_lang} 原文={text[:50]}...", "Translation")
         self.translation_started.emit(text)
-        # 使用小窗当前选择的目标语言
-        target_lang = self._popup._target_lang if self._is_popup_valid() else self._target_lang
         self._start_translation(
             text,
             target_lang,
@@ -372,13 +465,18 @@ class TranslationManager(QObject):
         )
 
     def _on_popup_target_lang_changed(self, new_lang: str):
-        """小窗目标语言变更"""
+        """用户在弹窗里手动改了目标语言：存成配置语言，本次弹窗方向也以它为准。"""
         self._target_lang = new_lang
-        # 保存到配置
+        self._popup_user_target = True
+        if self._is_popup_valid():
+            self._popup.set_target_lang(new_lang, auto=False)
         try:
             from settings import get_tool_settings_manager
-            get_tool_settings_manager().set_app_setting("translation_target_lang", new_lang)
-            log_debug(f"小窗目标语言已更新: {new_lang}", "Translation")
+
+            get_tool_settings_manager().set_app_setting(
+                "translation_target_lang", new_lang
+            )
+            log_debug(f"目标语言已更新为配置语言: {new_lang}", "Translation")
         except Exception as e:
             log_warning(f"保存目标语言失败: {e}", "Translation")
 
@@ -395,8 +493,8 @@ class TranslationManager(QObject):
                 self._on_popup_translate_requested
             )
             self._popup.target_lang_changed.connect(self._on_popup_target_lang_changed)
-            # 设置初始目标语言
-            self._popup.set_target_lang(self._target_lang)
+            # 语言框显示配置语言
+            self._popup.set_target_lang(self.configured_target_lang())
         return self._popup
 
     def _is_popup_valid(self) -> bool:
@@ -445,9 +543,14 @@ class TranslationManager(QObject):
         source_lang: str,
         target_lang: str
     ):
-        """确保翻译窗口存在（创建或复用）"""
+        """确保翻译窗口存在（创建或复用）
+
+        ``target_lang`` 是本次翻译方向；语言框里显示的始终是配置语言，
+        不会被方向覆盖（自动方向只在内部生效）。
+        """
         from .translation_dialog import TranslationLoadingDialog
-        
+        configured = self.configured_target_lang()
+
         if self._dialog is None or not self._is_dialog_valid():
             # 创建新窗口
             log_debug("创建新翻译窗口", "Translation")
@@ -455,8 +558,10 @@ class TranslationManager(QObject):
                 original_text=text,
                 position=position,
                 source_lang=source_lang or "auto",
-                target_lang=target_lang
+                target_lang=configured
             )
+            # 语言框 = 配置语言（不是本次的自动方向）
+            self._dialog.set_target_lang(configured)
             self._dialog.set_theme(self._current_theme_name())
             # 连接关闭信号
             self._dialog.destroyed.connect(self._on_dialog_destroyed)
@@ -467,14 +572,17 @@ class TranslationManager(QObject):
             )
             self._dialog.show()
         else:
-            # 复用现有窗口 - 保留用户选择的目标语言
+            # 复用现有窗口
             log_debug("复用现有翻译窗口", "Translation")
-            # 不覆盖 target_lang，保留用户在 ComboBox 中选择的语言。
             self._dialog.update_content(
                 text,
                 source_lang=source_lang or "auto"
             )
-            
+
+            # 没被用户手动改过时，语言框回到配置语言（而不是自动方向）。
+            if not self._dialog_user_selected_target_lang():
+                self._dialog.set_target_lang(configured)
+
             # 只有有文本时才显示加载状态
             if text and text.strip():
                 self._dialog.set_loading()
@@ -511,8 +619,12 @@ class TranslationManager(QObject):
         from .worker import TranslationWorker
 
         provider_name = self._backend_name()
+        from .language_detection import count_distinct_languages, is_all_chinese
+
         log_info(
             f"调用翻译引擎 {provider_name}: target={target_lang}, "
+            f"源文语种数={count_distinct_languages(text)}"
+            f"{'（全中文）' if is_all_chinese(text) else ''}, "
             f"preserve_formatting={self._preserve_formatting}",
             "Translation",
         )
@@ -733,6 +845,8 @@ class TranslationManager(QObject):
         if self._is_popup_valid():
             self._popup.close()
         self._popup = None
+        # 弹窗会话结束：手动选择不再延续
+        self._popup_session_active = False
         self._stop_current_thread()
 
     def shutdown(self, timeout_ms: int = 11000) -> None:
@@ -815,8 +929,16 @@ class TranslationManager(QObject):
         # 翻译模式：确保弹窗处于翻译语义（避免复用上次总结的弹窗）
         self._summary_mode = False
 
+        # 截图翻译：还没有源文（OCR 未出文字），方向先用配置语言；
+        # OCR 拿到文字后按真实语种重新判断（全中文→英语，其余/混排→中文）。
+        if self._dialog_user_selected_target_lang():
+            target_lang = self._dialog.get_target_lang() or self.configured_target_lang()
+        else:
+            target_lang = self.configured_target_lang()
+        self._target_lang = target_lang
+        self._log_direction(target_lang, "")
+
         # 保存目标语言和pixmap供OCR完成后使用
-        self._pending_target_lang = target_lang
         self._pending_pixmap = pixmap
 
         log_info("截图翻译模式：显示窗口并启动OCR", "Translation")
@@ -853,8 +975,9 @@ class TranslationManager(QObject):
         from settings import get_tool_settings_manager
         from PySide6.QtGui import QPixmap
 
-        if target_lang is None:
-            target_lang = get_tool_settings_manager().get_summary_target_lang() or "ZH"
+        # 总结与翻译共用同一个目标语言配置（translation_target_lang）。
+        target_lang = self.configured_target_lang()
+        self._target_lang = target_lang
 
         # 进入总结模式：复用同一弹窗，但语义切到「总结」
         self._summary_mode = True
@@ -987,18 +1110,24 @@ class TranslationManager(QObject):
             self._dialog.source_edit.setPlainText(result)
             log_info(f"OCR识别成功: {result[:50]}...", "Translation")
 
-            target_lang = getattr(self, '_pending_target_lang', "ZH")
+            if self._dialog_user_selected_target_lang():
+                # 用户在 OCR 期间自己改了语言 → 以用户为准
+                target_lang = self._dialog.get_target_lang() or self.configured_target_lang()
+            else:
+                # 方向按 OCR 出的文字判断（全中文→英语，其余/混排→中文）；
+                # 语言框仍显示配置语言，不被方向改写。
+                target_lang = self._direction_for(result)
+            self._target_lang = target_lang
+            self._log_direction(target_lang, result)
+
             if self._summary_mode:
                 # 总结模式：OCR 完成后调用大模型总结
-                self._start_summary(
-                    text=result,
-                    target_lang=self._dialog.get_target_lang() or target_lang,
-                )
+                self._start_summary(text=result, target_lang=target_lang)
             else:
                 # 自动开始翻译
                 self._start_translation(
                     text=result,
-                    target_lang=self._dialog.get_target_lang() or target_lang,
+                    target_lang=target_lang,
                     source_lang="auto",
                     result_target="dialog",
                 )
