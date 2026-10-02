@@ -725,6 +725,21 @@ class PinWindow(QWidget):
             img = self._image_transform.transform_image(img)
         return img
 
+    def get_ocr_image(self) -> QImage:
+        """OCR 专用取图：纯底图（不含绘制/高亮等标注）+ 原始像素。
+
+        与截图侧「只识别选区底图」（export_base_image_only）保持一致：
+        标注是给人看的，不应参与文字识别；同时按原始像素取图，
+        避免设备缩放（本机 dpr≈1.146）插值，并让文字框坐标基准
+        就是底图尺寸，与文字层的映射一致。
+        """
+        if not getattr(self, '_base_pixmap', None):
+            return QImage()
+        image = self._base_pixmap.toImage()
+        if hasattr(self, '_image_transform'):
+            image = self._image_transform.transform_image(image)
+        return image
+
     def _with_edit_paused(self, func):
         """退出编辑模式执行操作，再恢复。"""
         was_editing = self.canvas and self.canvas.is_editing

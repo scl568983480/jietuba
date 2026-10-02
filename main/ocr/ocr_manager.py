@@ -373,7 +373,8 @@ class OCRManager:
     def recognize_pixmap(
         self, 
         pixmap: QPixmap, 
-        return_format: str = "dict"
+        return_format: str = "dict",
+        need_boxes: bool = False,
     ) -> Any:
         """
         识别 QPixmap 图像中的文字
@@ -381,6 +382,10 @@ class OCRManager:
         Args:
             pixmap: QPixmap 图像对象
             return_format: 返回格式 ("text", "list", "dict")
+            need_boxes: 是否必须返回真实文字框坐标（钉图文字选择层需要）。
+                高精度引擎 oneocr 的 Rust 接口不返回坐标（bounding_rect 恒为 None），
+                此时会改用带坐标的引擎（Windows.Media.Ocr / PP-OCR），
+                否则文字框只能退化成左上角占位框，导致"看得到文字却选不中"。
         
         Returns:
             识别结果(格式取决于 return_format)
@@ -390,15 +395,59 @@ class OCRManager:
             if not self.initialize():
                 return self._format_error(return_format)
         
+        # 需要真实文字框坐标时（钉图文字选择层），走带坐标的引擎
+        if need_boxes:
+            boxed = self._recognize_with_boxes(pixmap, return_format)
+            if boxed is not None:
+                return boxed
+            # 没有可提供坐标的引擎：退回默认引擎，至少保证文本可用
+            # （Ctrl+A 复制、翻译仍能工作，只是文字框不能用于点选）
+            _ocr_log(
+                "没有可提供文字框坐标的引擎，退回默认引擎（文本可用、坐标不可用）",
+                "INFO",
+            )
+            need_boxes = False
+        
         # 根据引擎类型调用对应的识别方法
         if self._current_engine == self.ENGINE_PP_RUST:
+            # PP-OCR 本身返回文字框，无需特殊处理
             return self._recognize_with_ppocr_rust(pixmap, return_format)
         elif self._current_engine == self.ENGINE_WINDOS_OCR:
-            return self._recognize_with_windos_ocr(pixmap, return_format)
+            return self._recognize_with_windos_ocr(pixmap, return_format, need_boxes)
         elif self._current_engine == self.ENGINE_WINDOWS_OCR:
-            return self._recognize_with_windows_ocr(pixmap, return_format)
+            return self._recognize_with_windows_ocr(pixmap, return_format, need_boxes)
         else:
             return self._format_error(return_format, f"不支持的引擎: {self._current_engine}")
+    
+    def _recognize_with_boxes(self, pixmap: QPixmap, return_format: str) -> Any:
+        """需要真实文字框坐标时的识别（钉图文字选择层）。
+
+        默认引擎的高精度引擎 oneocr 不返回坐标（bounding_rect 恒为 None），
+        它给出的占位框会把整层文字挤在左上角 → 用户"看得到文字却选不中"。
+        所以这里改用带坐标的引擎：
+
+          1. PP-OCR（ppocr_rust）：有坐标，且实测中英混排/小字最稳
+          2. Windows.Media.Ocr：有坐标，识别质量稍弱（兜底）
+
+        Returns:
+            识别结果；没有可用坐标引擎时返回 None（由调用方回退到默认引擎）。
+        """
+        if PP_RUST_AVAILABLE:
+            _ocr_log("需要文字框坐标：使用 PP-OCR 引擎", "INFO")
+            result = self._recognize_with_ppocr_rust(pixmap, return_format)
+            if isinstance(result, dict) and result.get("code") == 100 and result.get("data"):
+                return result
+            if not WINDOWS_OCR_AVAILABLE:
+                return result
+        
+        if WINDOWS_OCR_AVAILABLE:
+            if PP_RUST_AVAILABLE:
+                _ocr_log("PP-OCR 未识别到内容，改用 Windows.Media.Ocr（带坐标）", "INFO")
+            else:
+                _ocr_log("需要文字框坐标：使用 Windows.Media.Ocr 引擎", "INFO")
+            return self._recognize_with_windows_ocr(pixmap, return_format, True)
+        
+        return None
     
     def _qimage_to_rgb_bytes(self, pixmap: QPixmap):
         """将 QPixmap/QImage 转为 (rgb_bytes, w, h, stride)，RGB888 格式，供 ppocr_rust 使用。"""
@@ -463,13 +512,17 @@ class OCRManager:
     def _recognize_with_windos_ocr(
         self,
         pixmap: QPixmap,
-        return_format: str
+        return_format: str,
+        need_boxes: bool = False,
     ) -> Any:
         """
         高精度引擎识别 (Rust FFI，零拷贝)
 
         QImage.bits() 指针直传 Rust，跳过 PNG 编解码。
         QImage Format_ARGB32 在 little-endian 上的内存布局是 BGRA，
+
+        注意：该接口目前不返回文字框坐标（bounding_rect 恒为 None、words 为空）。
+        调用方需要坐标时（need_boxes=True）直接返回失败，由上层回退到有坐标的引擎。
         """
         try:
             start_time = time.time()
@@ -520,6 +573,11 @@ class OCRManager:
                             [bbox['x3'], bbox['y3']],
                             [bbox['x4'], bbox['y4']]
                         ]
+                    elif need_boxes:
+                        # 该引擎不提供坐标：让上层回退到带坐标的引擎，
+                        # 而不是用占位框（占位框会让文字选择层整片点不中）
+                        _ocr_log("oneocr 未返回文字框坐标，回退到带坐标的引擎", "INFO")
+                        return self._format_error(return_format, "oneocr 未返回文字框坐标")
                     else:
                         box = [[0, 0], [100, 0], [100, 20], [0, 20]]
                     
@@ -542,9 +600,10 @@ class OCRManager:
     def _recognize_with_windows_ocr(
         self,
         pixmap: QPixmap,
-        return_format: str
+        return_format: str,
+        need_boxes: bool = False,
     ) -> Any:
-        """使用 windows_media_ocr 引擎识别"""
+        """使用 windows_media_ocr 引擎识别（oneocr 优先，Windows.Media.Ocr 备用）"""
         if not WINDOWS_OCR_AVAILABLE:
             return self._format_error(return_format, "windows_media_ocr 不可用")
         
@@ -552,13 +611,16 @@ class OCRManager:
             if not self._initialize_windows_ocr("中文"):
                 return self._format_error(return_format)
 
-        # oneocr 高精度引擎优先；识别不到时自动回退 Windows.Media.Ocr
+        # oneocr 高精度引擎优先；识别不到时自动回退 Windows.Media.Ocr。
+        # need_boxes=True 时 oneocr 会因缺少坐标而失败，从而自动走到下面带坐标的路径。
         if WINDOS_OCR_AVAILABLE:
-            oneocr_result = self._recognize_with_windos_ocr(pixmap, "dict")
+            oneocr_result = self._recognize_with_windos_ocr(pixmap, "dict", need_boxes)
             if isinstance(oneocr_result, dict):
                 if oneocr_result.get("code") == 100 and oneocr_result.get("data"):
                     _ocr_log("oneocr 高精度引擎识别成功", "INFO")
                     return oneocr_result
+            if need_boxes:
+                _ocr_log("改用 Windows.Media.Ocr（需要文字框坐标）", "INFO")
 
         try:
             start_time = time.time()

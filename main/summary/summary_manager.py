@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """截图总结 — 大模型调用工具模块
 
-仅提供两样东西供翻译管理器复用：
+仅提供两样东西供 TranslationManager 的总结通道调用：
   - build_summary_prompt(target_lang): 根据目标语言返回对应提示词
   - SummaryLLMWorker: 后台调用 OpenAI 兼容 chat-completions 接口生成总结
 
@@ -9,8 +9,8 @@
   - 总结成中文(含繁体)时使用中文提示词；
   - 总结成其它语言时使用英文提示词（并指明目标语言名）。
 
-总结结果展示复用「截图工具栏翻译按钮」打开的翻译弹窗（TranslationDialog），
-不再单独维护一个弹窗。
+总结结果由 ``TranslationManager`` 写入独立的总结窗口（与截图翻译窗口各自
+独立、互不打断），本模块不持有任何窗口。
 """
 
 from __future__ import annotations

@@ -48,7 +48,8 @@ def isolated_settings(tmp_path, monkeypatch):
 def _stub_pipeline(monkeypatch, manager):
     """屏蔽网络与线程：只观察目标语言的判定结果。"""
     monkeypatch.setattr(manager, "_backend_ready", lambda: True)
-    monkeypatch.setattr(manager, "_stop_current_thread", lambda: None)
+    # 翻译 / 总结各自一条请求通道，停止时带 surface 参数
+    monkeypatch.setattr(manager, "_stop_current_thread", lambda *args, **kwargs: None)
     started = []
     monkeypatch.setattr(
         manager,
@@ -332,7 +333,8 @@ def test_screenshot_translation_uses_ocr_text_direction(
     _set_config_lang(isolated_settings, "ZH")
     manager = TranslationManager()
     started = _stub_pipeline(monkeypatch, manager)
-    monkeypatch.setattr(manager, "_start_ocr_thread", lambda pixmap: None)
+    # OCR 线程按表面分流（surface 参数），这里只关心目标语言的判定结果
+    monkeypatch.setattr(manager, "_start_ocr_thread", lambda pixmap, *args: None)
 
     manager.translate_from_image(pixmap=object())
     # OCR 未出文字前：方向与语言框都是配置语言
@@ -353,7 +355,8 @@ def test_screenshot_translation_keeps_language_chosen_during_ocr(
     _set_config_lang(isolated_settings, "ZH")
     manager = TranslationManager()
     started = _stub_pipeline(monkeypatch, manager)
-    monkeypatch.setattr(manager, "_start_ocr_thread", lambda pixmap: None)
+    # OCR 线程按表面分流（surface 参数），这里只关心目标语言的判定结果
+    monkeypatch.setattr(manager, "_start_ocr_thread", lambda pixmap, *args: None)
 
     manager.translate_from_image(pixmap=object())
     # OCR 期间用户自己改成日语
@@ -374,7 +377,8 @@ def test_screenshot_direction_recomputed_for_next_capture(
     _set_config_lang(isolated_settings, "ZH")
     manager = TranslationManager()
     started = _stub_pipeline(monkeypatch, manager)
-    monkeypatch.setattr(manager, "_start_ocr_thread", lambda pixmap: None)
+    # OCR 线程按表面分流（surface 参数），这里只关心目标语言的判定结果
+    monkeypatch.setattr(manager, "_start_ocr_thread", lambda pixmap, *args: None)
 
     manager.translate_from_image(pixmap=object())
     manager._on_ocr_finished(True, "第一次截图是中文")

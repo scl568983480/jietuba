@@ -1,14 +1,22 @@
 # -*- coding: utf-8 -*-
 """
-translation_manager.py - 翻译窗口单例管理器
+translation_manager.py - 翻译 / 总结窗口单例管理器
 
-负责管理全局唯一的翻译窗口，实现与钉图窗口的解耦。
+负责管理各个结果窗口，实现与钉图、截图窗口的解耦。
 
-设计特点：
-1. 单例模式 - 全局最多存在一个翻译窗口
-2. 复用窗口 - 多个钉图点击翻译时复用同一窗口
-3. 关闭即清理 - 窗口关闭时释放内存
-4. 解耦设计 - 钉图窗口无需直接管理翻译窗口
+结果表面（surface）共三个，各自持有窗口与在途请求：
+
+* ``dialog`` —— 截图翻译主窗口（钉图翻译、托盘「打开翻译窗口」也复用）
+* ``summary`` —— 截图总结主窗口（OCR + 大模型总结）
+* ``compact`` —— 划词翻译小窗
+
+独立性约定：
+1. **翻译与总结互不打断**：两个主窗口各自独立存在，可以同时打开，
+   先出的译文不会被后一次总结覆盖，各自在途的网络/OCR 请求也不会
+   被对方取消。
+2. ``dialog`` 与 ``compact`` 仍是同一个「翻译」功能的两副面孔，
+   保持原有的互斥（打开一个就隐藏另一个）与共用一条请求通道。
+3. 单例模式、复用窗口、关闭即清理、解耦设计的原有特点不变。
 
 使用方式：
     from translation import TranslationManager
@@ -16,12 +24,15 @@ translation_manager.py - 翻译窗口单例管理器
     # 获取单例（不会创建窗口）
     manager = TranslationManager.instance()
     
-    # 翻译文本（创建或复用窗口）
+    # 翻译文本（创建或复用翻译窗口）
     manager.translate(
         text="Hello World",
         target_lang="zh-Hans",
         position=QPoint(100, 100)  # 可选，窗口位置
     )
+
+    # 截图总结（创建或复用总结窗口，不影响翻译窗口）
+    manager.summarize_from_image(pixmap)
 """
 
 import time
@@ -31,6 +42,19 @@ from PySide6.QtCore import QCoreApplication, QObject, QPoint, QTimer, Signal
 from core import log_info, log_debug, log_error, log_warning
 from core.ui_theme import get_ui_theme
 from .language_detection import describe_languages, translation_direction
+
+
+# ── 结果表面 ────────────────────────────────────────────────────────
+# 翻译主窗口 / 总结主窗口各自独立；划词小窗与翻译主窗口互斥。
+RESULT_DIALOG = "dialog"      # 截图翻译主窗口
+RESULT_SUMMARY = "summary"    # 截图总结主窗口
+RESULT_COMPACT = "compact"    # 划词翻译小窗
+MAIN_SURFACES = (RESULT_DIALOG, RESULT_SUMMARY)
+# 翻译通道（主窗口 + 小窗共用一条请求通道）/ 总结通道
+TRANSLATION_SURFACES = (RESULT_DIALOG, RESULT_COMPACT)
+
+# 新主窗口相对于另一个已打开主窗口的层叠偏移，避免两个窗口完全重叠
+CASCADE_OFFSET = QPoint(38, 38)
 
 
 class TranslationManager(QObject):
@@ -48,19 +72,22 @@ class TranslationManager(QObject):
             return
         super().__init__()
         self._initialized = True
-        self._dialog = None  # TranslationLoadingDialog 实例
+        self._dialogs: dict[str, object] = {}  # surface -> TranslationLoadingDialog
         self._popup = None  # TranslationPopup 实例
-        self._thread = None  # TranslationWorker 实例
+        self._thread = None  # 翻译通道在途线程（主窗口与小窗共用一条通道）
+        self._summary_thread = None  # 总结通道在途线程
         self._threads = set()  # Keep superseded network workers alive until they exit.
-        self._request_token = 0
+        self._request_token = 0  # 翻译通道请求令牌
+        self._summary_token = 0  # 总结通道请求令牌
         self._request_targets = {}
-        self._active_target = "dialog"
+        self._active_target = RESULT_DIALOG
         self._target_lang = "ZH"
+        self._ocr_thread = None  # 翻译通道在途 OCR 线程
+        self._summary_ocr_thread = None  # 总结通道在途 OCR 线程
         # 小窗本次会话是否被用户手动指定过目标语言
         self._popup_user_target = False
         # 小窗是否正处于一次取词会话中（用于区分"同一会话重译"与"新一次取词"）
         self._popup_session_active = False
-        self._summary_mode = False  # 当前弹窗是否处于「总结」模式
         self._api_key = ""
         self._use_pro = False
         self._legacy_provider_override = False
@@ -106,15 +133,56 @@ class TranslationManager(QObject):
         except ValueError:
             return self.tr("Engine not configured")
 
+    # ── 表面访问 ────────────────────────────────────────────────────
+    @property
+    def _dialog(self):
+        """翻译主窗口。
+
+        历史上管理器只持有一个 ``_dialog``；现在主窗口按表面分别保存
+        （翻译 / 总结各自独立），这里保留同名读写入口指向翻译主窗口。
+        """
+        return self._dialogs.get(RESULT_DIALOG)
+
+    @_dialog.setter
+    def _dialog(self, dialog):
+        if dialog is None:
+            self._dialogs.pop(RESULT_DIALOG, None)
+        else:
+            self._dialogs[RESULT_DIALOG] = dialog
+
+    def _surface_valid(self, surface: str) -> bool:
+        """指定表面的主窗口是否仍然存在（未被 Qt 销毁）。"""
+        dialog = self._dialogs.get(surface)
+        if dialog is None:
+            return False
+        try:
+            _ = dialog.isVisible()
+            return True
+        except RuntimeError:
+            self._dialogs.pop(surface, None)
+            return False
+
+    def _hide_surface(self, surface: str) -> None:
+        widget = self._popup if surface == RESULT_COMPACT else self._dialogs.get(surface)
+        if widget is None:
+            return
+        try:
+            widget.hide()
+        except RuntimeError:
+            if surface != RESULT_COMPACT:
+                self._dialogs.pop(surface, None)
+
     def _activate_surface(self, target: str) -> None:
-        """Keep the full editor and compact popup mutually exclusive."""
+        """把指定表面置为前台。
+
+        翻译主窗口与总结主窗口互不隐藏（两份结果可以同时留在屏幕上）；
+        划词小窗与翻译主窗口保持原有的互斥关系。
+        """
         self._active_target = target
-        if target == "dialog":
-            if self._is_popup_valid():
-                self._popup.hide()
-        elif target == "compact":
-            if self._is_dialog_valid():
-                self._dialog.hide()
+        if target == RESULT_COMPACT:
+            self._hide_surface(RESULT_DIALOG)
+        else:
+            self._hide_surface(RESULT_COMPACT)
 
     def _current_theme_name(self) -> str:
         """Return the effective application theme used by translation surfaces."""
@@ -123,8 +191,9 @@ class TranslationManager(QObject):
     def _on_ui_theme_changed(self, tokens) -> None:
         """Refresh any translation surfaces that have already been created."""
         theme_name = "dark" if tokens.is_dark else "light"
-        if self._is_dialog_valid():
-            self._dialog.set_theme(theme_name)
+        for surface in MAIN_SURFACES:
+            if self._surface_valid(surface):
+                self._dialogs[surface].set_theme(theme_name)
         if self._is_popup_valid():
             self._popup.set_theme(theme_name)
 
@@ -138,6 +207,8 @@ class TranslationManager(QObject):
     #
     # 一次"弹窗会话"= 一次划词取词 / 一次截图，从取词到弹窗关闭；用户会话期间
     # 手动改语言只在这一次会话内有效，下一次取词重新按源文判断。
+    # 总结窗口的规则相同，但配置语言是独立设置项 summary_target_lang
+    # （没设过则跟随 translation_target_lang），语言框显示这个值。
     def configured_target_lang(self) -> str:
         """配置里的目标语言（用户设置；没设过则跟随系统语言）。"""
         try:
@@ -147,6 +218,58 @@ class TranslationManager(QObject):
         except Exception as exc:
             log_warning(f"读取目标语言设置失败: {exc}", "Translation")
             return "ZH"
+
+    def configured_summary_target_lang(self) -> str:
+        """配置里的总结语言（独立记忆，未单独设置时跟随翻译目标语言）。"""
+        try:
+            from settings import get_tool_settings_manager
+
+            return get_tool_settings_manager().get_summary_target_lang() or "ZH"
+        except Exception as exc:
+            log_warning(f"读取总结目标语言设置失败: {exc}", "Translation")
+            return self.configured_target_lang()
+
+    def _configured_lang_for(self, surface: str) -> str:
+        """该表面语言框显示的配置语言（翻译 / 总结各自独立记忆）。"""
+        if surface == RESULT_SUMMARY:
+            return self.configured_summary_target_lang()
+        return self.configured_target_lang()
+
+    def _badge_for(self, surface: str) -> tuple[str, bool]:
+        """该表面标题栏角标（引擎名, 是否已配置）：总结看大模型，翻译看翻译引擎。"""
+        if surface == RESULT_SUMMARY:
+            return self._summary_backend_name(), self._summary_ready()
+        return self._backend_name(), self._backend_ready()
+
+    def _dialog_target_lang(self, surface: str) -> str:
+        """该表面语言框当前选中的语言（没有窗口时返回空串）。"""
+        dialog = self._dialogs.get(surface)
+        if dialog is None:
+            return ""
+        try:
+            return dialog.get_target_lang() or ""
+        except RuntimeError:
+            self._dialogs.pop(surface, None)
+            return ""
+
+    def _cascade_position(self, surface: str) -> Optional[QPoint]:
+        """新主窗口的默认位置：另一个主窗口已打开时层叠错开。
+
+        返回 ``None`` 表示交给窗口自己按光标所在屏幕居中
+        （``TranslationDialog._place_initial_window`` 会把位置夹回屏幕内）。
+        """
+        for other in MAIN_SURFACES:
+            if other == surface:
+                continue
+            dialog = self._dialogs.get(other)
+            if dialog is None:
+                continue
+            try:
+                if dialog.isVisible():
+                    return dialog.pos() + CASCADE_OFFSET
+            except RuntimeError:
+                self._dialogs.pop(other, None)
+        return None
 
     def _direction_for(self, source_text: str) -> str:
         """按源文语种给出翻译方向；判不出语种时回退到配置语言。"""
@@ -162,11 +285,13 @@ class TranslationManager(QObject):
             "Translation",
         )
 
-    def _dialog_user_selected_target_lang(self) -> bool:
-        """翻译弹窗里的目标语言是否被用户手动改过。"""
-        if not self._is_dialog_valid():
+    def _dialog_user_selected_target_lang(self, surface: str = RESULT_DIALOG) -> bool:
+        """该表面窗口里的目标语言是否被用户手动改过。"""
+        if not self._surface_valid(surface):
             return False
-        return bool(getattr(self._dialog, "target_lang_selected_by_user", False))
+        return bool(
+            getattr(self._dialogs.get(surface), "target_lang_selected_by_user", False)
+        )
 
     def _popup_user_selected_target_lang(self) -> bool:
         """小窗本次是否被用户手动指定过目标语言。"""
@@ -261,12 +386,12 @@ class TranslationManager(QObject):
         self._log_direction(target_lang, text or "")
         self._target_lang = target_lang
 
-        # 停止之前的翻译线程
-        self._stop_current_thread()
-        self._activate_surface("dialog")
+        # 停止翻译通道之前未完成的请求（不影响总结窗口）
+        self._stop_current_thread(RESULT_DIALOG)
+        self._activate_surface(RESULT_DIALOG)
 
-        # 创建或复用窗口
-        self._ensure_dialog(text, position, source_lang, target_lang)
+        # 创建或复用翻译主窗口
+        self._ensure_dialog(RESULT_DIALOG, text, position, source_lang, target_lang)
 
         # 如果有文本，启动翻译；否则只显示空窗口
         if text and text.strip():
@@ -280,7 +405,7 @@ class TranslationManager(QObject):
 
             self._start_translation(
                 text, target_lang, source_lang,
-                result_target="dialog",
+                result_target=RESULT_DIALOG,
             )
         else:
             log_info("打开翻译窗口（待用户输入）", "Translation")
@@ -332,8 +457,8 @@ class TranslationManager(QObject):
         self._split_sentences = split_sentences
         self._preserve_formatting = preserve_formatting
 
-        self._stop_current_thread()
-        self._activate_surface("compact")
+        self._stop_current_thread(RESULT_COMPACT)
+        self._activate_surface(RESULT_COMPACT)
         # 上一次弹窗会话结束（用户改语言/改文字触发的重译走别的入口），
         # 所以到这里说明这是一次新的划词取词：清掉上次会话的手动选择。
         if not self._popup_session_active:
@@ -368,7 +493,7 @@ class TranslationManager(QObject):
         self.translation_started.emit(text)
         self._start_translation(
             text, target_lang, source_lang,
-            result_target="compact",
+            result_target=RESULT_COMPACT,
         )
 
     def open_compact_input(
@@ -399,8 +524,8 @@ class TranslationManager(QObject):
         configured = self.configured_target_lang()
         self._target_lang = configured
 
-        self._stop_current_thread()
-        self._activate_surface("compact")
+        self._stop_current_thread(RESULT_COMPACT)
+        self._activate_surface(RESULT_COMPACT)
         popup = self._ensure_popup()
         # 空输入框没有源文可判语种 → 用配置语言，语言框显示同一个值。
         self._apply_popup_target_lang(configured)
@@ -431,8 +556,8 @@ class TranslationManager(QObject):
 
     def _on_popup_input_changed(self):
         """Invalidate an in-flight result as soon as manual text changes."""
-        if self._active_target == "compact" and self._thread is not None:
-            self._stop_current_thread()
+        if self._active_target == RESULT_COMPACT and self._thread is not None:
+            self._stop_current_thread(RESULT_COMPACT)
 
     def _on_popup_translate_requested(self, text: str):
         text = (text or "").strip()
@@ -442,8 +567,8 @@ class TranslationManager(QObject):
         # 属于"当前这一次取词"的延续；处理完就结束本次会话，
         # 使下一次 translate_compact() 重新按源文判断方向。
         self._popup_session_active = False
-        self._stop_current_thread()
-        self._activate_surface("compact")
+        self._stop_current_thread(RESULT_COMPACT)
+        self._activate_surface(RESULT_COMPACT)
         if not self._backend_ready():
             if self._is_popup_valid():
                 self._popup.show_error(self._api_key_error())
@@ -461,7 +586,7 @@ class TranslationManager(QObject):
             text,
             target_lang,
             "auto",
-            result_target="compact",
+            result_target=RESULT_COMPACT,
         )
 
     def _on_popup_target_lang_changed(self, new_lang: str):
@@ -511,9 +636,9 @@ class TranslationManager(QObject):
         self, source_text: str, translated_text: str, error_text: str
     ):
         """Promote compact content to the full editor without re-requesting it."""
-        self._activate_surface("dialog")
+        self._activate_surface(RESULT_DIALOG)
         if self._thread is not None and self._thread.isRunning():
-            self._request_targets[self._request_token] = "dialog"
+            self._request_targets[self._request_token] = RESULT_DIALOG
         target_lang = "ZH"
         try:
             from settings import get_tool_settings_manager
@@ -521,7 +646,7 @@ class TranslationManager(QObject):
             target_lang = get_tool_settings_manager().get_translation_target_lang()
         except Exception:
             pass
-        self._ensure_dialog(source_text, None, "auto", target_lang)
+        self._ensure_dialog(RESULT_DIALOG, source_text, None, "auto", target_lang)
         if not self._is_dialog_valid():
             return
         if translated_text:
@@ -538,74 +663,78 @@ class TranslationManager(QObject):
     
     def _ensure_dialog(
         self,
+        surface: str,
         text: str,
         position: QPoint,
         source_lang: str,
         target_lang: str
     ):
-        """确保翻译窗口存在（创建或复用）
+        """确保指定表面的主窗口存在（创建或复用）
 
-        ``target_lang`` 是本次翻译方向；语言框里显示的始终是配置语言，
-        不会被方向覆盖（自动方向只在内部生效）。
+        翻译（``RESULT_DIALOG``）与总结（``RESULT_SUMMARY``）各自持有一个窗口：
+        进入总结不会复用或改写翻译窗口，两份结果可以同时留在屏幕上。
+
+        ``target_lang`` 是本次翻译方向；语言框里显示的始终是该表面的配置语言
+        （翻译 / 总结各自独立记忆），不会被自动方向覆盖。
         """
         from .translation_dialog import TranslationLoadingDialog
-        configured = self.configured_target_lang()
+        configured = self._configured_lang_for(surface)
+        is_summary = surface == RESULT_SUMMARY
+        label = "总结" if is_summary else "翻译"
 
-        if self._dialog is None or not self._is_dialog_valid():
+        if not self._surface_valid(surface):
             # 创建新窗口
-            log_debug("创建新翻译窗口", "Translation")
-            self._dialog = TranslationLoadingDialog(
+            log_debug(f"创建新{label}窗口", "Translation")
+            dialog = TranslationLoadingDialog(
                 original_text=text,
                 position=position,
                 source_lang=source_lang or "auto",
-                target_lang=configured
+                target_lang=configured,
+                target_lang_setting_key=(
+                    "summary_target_lang" if is_summary else "translation_target_lang"
+                ),
             )
+            self._dialogs[surface] = dialog
             # 语言框 = 配置语言（不是本次的自动方向）
-            self._dialog.set_target_lang(configured)
-            self._dialog.set_theme(self._current_theme_name())
-            # 连接关闭信号
-            self._dialog.destroyed.connect(self._on_dialog_destroyed)
-            # 连接翻译信号 (text, source_lang, target_lang)
-            self._dialog.translate_requested.connect(self._on_translate_requested)
-            self._dialog.set_backend_badge(
-                self._backend_name(), self._backend_ready()
+            dialog.set_target_lang(configured)
+            # 语义在创建时一次固定：翻译窗口永远是翻译，总结窗口永远是总结
+            dialog.set_mode("summary" if is_summary else "translate")
+            dialog.set_theme(self._current_theme_name())
+            # 连接关闭信号（带上表面，销毁时只清理自己）
+            dialog.destroyed.connect(
+                lambda *_args, s=surface: self._on_dialog_destroyed(s)
             )
-            self._dialog.show()
+            # 连接翻译信号 (text, source_lang, target_lang)
+            dialog.translate_requested.connect(self._on_translate_requested)
+            dialog.set_backend_badge(*self._badge_for(surface))
+            dialog.show()
         else:
             # 复用现有窗口
-            log_debug("复用现有翻译窗口", "Translation")
-            self._dialog.update_content(
+            dialog = self._dialogs[surface]
+            log_debug(f"复用现有{label}窗口", "Translation")
+            dialog.update_content(
                 text,
                 source_lang=source_lang or "auto"
             )
 
             # 没被用户手动改过时，语言框回到配置语言（而不是自动方向）。
-            if not self._dialog_user_selected_target_lang():
-                self._dialog.set_target_lang(configured)
+            if not self._dialog_user_selected_target_lang(surface):
+                dialog.set_target_lang(configured)
 
             # 只有有文本时才显示加载状态
             if text and text.strip():
-                self._dialog.set_loading()
-            
-            self._dialog.set_backend_badge(
-                self._backend_name(), self._backend_ready()
-            )
-            
-            # 激活窗口
-            self._dialog.show()
-            self._dialog.raise_()
-            self._dialog.activateWindow()
+                dialog.set_loading()
+
+            dialog.set_backend_badge(*self._badge_for(surface))
+
+            # 激活窗口（不隐藏另一个主窗口）
+            dialog.show()
+            dialog.raise_()
+            dialog.activateWindow()
     
     def _is_dialog_valid(self) -> bool:
-        """检查对话框是否有效（未被删除）"""
-        if self._dialog is None:
-            return False
-        try:
-            # 尝试访问对话框属性，如果已删除会抛出 RuntimeError
-            _ = self._dialog.isVisible()
-            return True
-        except RuntimeError:
-            return False
+        """检查翻译主窗口是否有效（未被删除）"""
+        return self._surface_valid(RESULT_DIALOG)
     
     def _start_translation(
         self,
@@ -629,7 +758,7 @@ class TranslationManager(QObject):
             "Translation",
         )
         
-        if result_target == "dialog" and self._is_dialog_valid():
+        if result_target == RESULT_DIALOG and self._is_dialog_valid():
             self._dialog.set_loading()  # 翻译按钮置灰并显示翻译中...
 
         self._request_token += 1
@@ -683,17 +812,20 @@ class TranslationManager(QObject):
         return model or self.tr("LLM not configured")
 
     def _start_summary(self, text: str, target_lang: str):
-        """OCR 完成后调用大模型总结（复用翻译弹窗结果区）。"""
+        """OCR 完成后调用大模型总结（写入总结主窗口的结果区）。
+
+        使用独立的总结通道令牌与线程槽，因此不会取消翻译窗口在途的请求。
+        """
         from settings import get_tool_settings_manager
         from summary import SummaryLLMWorker, build_summary_prompt
 
         mgr = get_tool_settings_manager()
         system_prompt = build_summary_prompt(target_lang)
-        if self._is_dialog_valid():
-            self._dialog.set_summary_loading()  # 确保总结按钮处于总结中...不可点击状态
-        self._request_token += 1
-        token = self._request_token
-        self._request_targets[token] = "dialog"
+        if self._surface_valid(RESULT_SUMMARY):
+            # 确保总结按钮处于总结中...不可点击状态
+            self._dialogs[RESULT_SUMMARY].set_summary_loading()
+        self._summary_token += 1
+        token = self._summary_token
         worker = SummaryLLMWorker(
             api_url=mgr.get_openapi_url(),
             api_key=mgr.get_openapi_api_key(),
@@ -701,7 +833,7 @@ class TranslationManager(QObject):
             system_prompt=system_prompt,
             user_text=text,
         )
-        self._thread = worker
+        self._summary_thread = worker
         self._threads.add(worker)
         worker.finished_signal.connect(
             lambda ok, content, t=worker, n=token: self._on_summary_thread_result(
@@ -714,32 +846,42 @@ class TranslationManager(QObject):
     def _on_summary_thread_result(
         self, thread, token: int, success: bool, content: str
     ):
-        """丢弃被新请求替代的总结结果，仅处理最新一次请求。"""
-        if token != self._request_token or thread is not self._thread:
-            self._request_targets.pop(token, None)
+        """丢弃被新总结请求替代的结果，仅处理最新一次请求。"""
+        if token != self._summary_token or thread is not self._summary_thread:
             log_debug("忽略已被新请求替代的总结结果", "Translation")
             return
-        self._request_targets.pop(token, None)
         self._on_summary_finished(success, content)
 
     def _on_summary_finished(self, success: bool, content: str):
-        """将总结结果写入弹窗（成功=结果，失败=错误信息）。"""
-        if not self._is_dialog_valid():
+        """将总结结果写入总结窗口（成功=结果，失败=错误信息）。"""
+        if not self._surface_valid(RESULT_SUMMARY):
             return
         if success:
-            self._dialog.set_summary_result(content)
+            self._dialogs[RESULT_SUMMARY].set_summary_result(content)
         else:
-            self._dialog.set_summary_error(content)
+            self._dialogs[RESULT_SUMMARY].set_summary_error(content)
 
-    def _stop_current_thread(self):
-        """Invalidate the active request without blocking the GUI thread."""
-        old_token = self._request_token
-        self._request_token += 1
-        self._request_targets.pop(old_token, None)
-        thread = self._thread
-        self._thread = None
-        if thread is not None and thread.isRunning():
-            thread.requestInterruption()
+    def _stop_current_thread(self, surface: Optional[str] = None):
+        """Invalidate the active request without blocking the GUI thread.
+
+        ``surface`` 指定只作废哪一条通道：翻译（主窗口 / 小窗）或总结。
+        默认 ``None`` 表示全部作废（关闭窗口、退出程序时使用）。
+        两条通道分开计数、分开中断，所以互不打断。
+        """
+        if surface in (None, RESULT_DIALOG, RESULT_COMPACT):
+            old_token = self._request_token
+            self._request_token += 1
+            self._request_targets.pop(old_token, None)
+            thread = self._thread
+            self._thread = None
+            if thread is not None and thread.isRunning():
+                thread.requestInterruption()
+        if surface in (None, RESULT_SUMMARY):
+            self._summary_token += 1
+            thread = self._summary_thread
+            self._summary_thread = None
+            if thread is not None and thread.isRunning():
+                thread.requestInterruption()
 
     def _on_thread_result(
         self,
@@ -764,6 +906,8 @@ class TranslationManager(QObject):
         self._threads.discard(thread)
         if self._thread is thread:
             self._thread = None
+        if self._summary_thread is thread:
+            self._summary_thread = None
         thread.deleteLater()
     
     def _on_translation_finished(
@@ -777,71 +921,101 @@ class TranslationManager(QObject):
         """翻译完成回调"""
         log_debug(f"翻译完成: success={success}, detected_lang={detected_lang}", "Translation")
 
-        if result_target == "compact" and self._is_popup_valid():
+        if result_target == RESULT_COMPACT and self._is_popup_valid():
             if success:
                 self._popup.show_result(translated_text, detected_lang)
             else:
                 self._popup.show_error(error or self.tr("Translation failed"))
-        elif result_target == "dialog" and self._is_dialog_valid():
+        elif result_target == RESULT_DIALOG and self._is_dialog_valid():
             self._dialog.on_translation_finished(success, translated_text, error, detected_lang)
         
         self.translation_finished.emit(success, translated_text, error)
         
 
+    def _surface_of_sender(self) -> str:
+        """请求来自哪个表面（按信号发送者判断）。
+
+        窗口按钮发出的 ``translate_requested`` 由对应窗口自己发送；直接调用
+        （没有发送者）时按翻译主窗口处理。
+        """
+        sender = self.sender()
+        if sender is None:
+            return RESULT_DIALOG
+        for surface, dialog in self._dialogs.items():
+            if dialog is sender:
+                return surface
+        return RESULT_DIALOG
+
     def _on_translate_requested(self, text: str, source_lang: str, target_lang: str):
-        """处理请求（来自弹窗底部按钮，翻译模式=翻译 / 总结模式=总结）"""
-        self._activate_surface("dialog")
-        if (self._summary_mode and not self._summary_ready()) or (
-            not self._summary_mode and not self._backend_ready()
-        ):
-            if self._is_dialog_valid():
-                if self._summary_mode:
-                    self._dialog.set_summary_error(self.tr("LLM not configured"))
-                else:
-                    self._dialog.set_translation_error(self._api_key_error())
+        """处理请求（来自弹窗底部按钮：翻译窗口=翻译 / 总结窗口=总结）"""
+        surface = self._surface_of_sender()
+        is_summary = surface == RESULT_SUMMARY
+        self._activate_surface(surface)
+
+        if is_summary:
+            self._handle_summary_request(text, target_lang)
+            return
+
+        if not self._backend_ready():
+            if self._surface_valid(surface):
+                self._dialogs[surface].set_translation_error(self._api_key_error())
             return
 
         if not text or not text.strip():
-            if self._is_dialog_valid():
-                if self._summary_mode:
-                    self._dialog.set_summary_error(self.tr("No text to summarize"))
-                else:
-                    self._dialog.set_translation_error(self.tr("Please enter text to translate"))
+            if self._surface_valid(surface):
+                self._dialogs[surface].set_translation_error(
+                    self.tr("Please enter text to translate")
+                )
             return
 
-        log_debug(
-            f"{'总结' if self._summary_mode else '翻译'}请求: -> {target_lang}",
-            "Translation",
-        )
+        log_debug(f"翻译请求: -> {target_lang}", "Translation")
 
-        # 停止当前线程
-        self._stop_current_thread()
-
-        if self._summary_mode:
-            # 总结模式：重新调用大模型总结
-            self._start_summary(text, target_lang)
-            return
+        # 停止翻译通道当前线程（总结通道不受影响）
+        self._stop_current_thread(RESULT_DIALOG)
 
         # 启动翻译
         self._start_translation(
             text=text,
             target_lang=target_lang,
             source_lang=source_lang,
-            result_target="dialog",
+            result_target=RESULT_DIALOG,
         )
-    
-    def _on_dialog_destroyed(self):
-        """窗口被销毁时的清理"""
-        log_debug("翻译窗口已关闭，清理资源", "Translation")
-        self._dialog = None
-        if self._active_target == "dialog":
-            self._stop_current_thread()
+
+    def _handle_summary_request(self, text: str, target_lang: str) -> None:
+        """总结窗口底部按钮：重新调用大模型总结。"""
+        if not self._summary_ready():
+            if self._surface_valid(RESULT_SUMMARY):
+                self._dialogs[RESULT_SUMMARY].set_summary_error(
+                    self.tr("LLM not configured")
+                )
+            return
+
+        if not text or not text.strip():
+            if self._surface_valid(RESULT_SUMMARY):
+                self._dialogs[RESULT_SUMMARY].set_summary_error(
+                    self.tr("No text to summarize")
+                )
+            return
+
+        log_debug(f"总结请求: -> {target_lang}", "Translation")
+
+        # 只作废总结通道上一次未完成的请求，翻译窗口不受影响
+        self._stop_current_thread(RESULT_SUMMARY)
+        self._start_summary(text, target_lang)
+
+    def _on_dialog_destroyed(self, surface: str = RESULT_DIALOG):
+        """窗口被销毁时的清理（只清理该表面）"""
+        log_debug(f"{surface} 窗口已关闭，清理资源", "Translation")
+        self._dialogs.pop(surface, None)
+        if self._active_target == surface:
+            self._stop_current_thread(surface)
     
     def close_dialog(self):
-        """主动关闭翻译窗口"""
-        if self._is_dialog_valid():
-            self._dialog.close()
-        self._dialog = None
+        """主动关闭翻译窗口、总结窗口与划词小窗"""
+        for surface in MAIN_SURFACES:
+            if self._surface_valid(surface):
+                self._dialogs[surface].close()
+            self._dialogs.pop(surface, None)
         if self._is_popup_valid():
             self._popup.close()
         self._popup = None
@@ -868,8 +1042,11 @@ class TranslationManager(QObject):
                 log_warning("退出时翻译网络线程未在期限内结束", "Translation")
     
     def is_dialog_open(self) -> bool:
-        """检查翻译窗口是否打开"""
-        return self._is_dialog_valid() and self._dialog.isVisible()
+        """是否至少有一个主窗口（翻译 / 总结）打开"""
+        return any(
+            self._surface_valid(surface) and self._dialogs[surface].isVisible()
+            for surface in MAIN_SURFACES
+        )
     
     @classmethod
     def cleanup(cls):
@@ -922,31 +1099,27 @@ class TranslationManager(QObject):
         self._split_sentences = split_sentences
         self._preserve_formatting = preserve_formatting
 
-        # 丢弃上一次未完成的翻译/总结请求，避免旧结果串到新截图
-        self._stop_current_thread()
-        self._activate_surface("dialog")
-
-        # 翻译模式：确保弹窗处于翻译语义（避免复用上次总结的弹窗）
-        self._summary_mode = False
+        # 只作废翻译通道上一次未完成的请求（总结窗口在途的总结不受影响）
+        self._stop_current_thread(RESULT_DIALOG)
+        self._activate_surface(RESULT_DIALOG)
 
         # 截图翻译：还没有源文（OCR 未出文字），方向先用配置语言；
         # OCR 拿到文字后按真实语种重新判断（全中文→英语，其余/混排→中文）。
-        if self._dialog_user_selected_target_lang():
+        if self._dialog_user_selected_target_lang(RESULT_DIALOG):
             target_lang = self._dialog.get_target_lang() or self.configured_target_lang()
         else:
             target_lang = self.configured_target_lang()
         self._target_lang = target_lang
         self._log_direction(target_lang, "")
 
-        # 保存目标语言和pixmap供OCR完成后使用
-        self._pending_pixmap = pixmap
+        log_info("截图翻译模式：显示翻译窗口并启动OCR", "Translation")
 
-        log_info("截图翻译模式：显示窗口并启动OCR", "Translation")
-        
         # 1. 显示翻译窗口（原文区显示"识别中..."）
+        #    另一个主窗口（总结）已打开时层叠错开，避免两个窗口完全重叠。
         self._ensure_dialog(
+            RESULT_DIALOG,
             text="",  # 初始为空
-            position=None,
+            position=self._cascade_position(RESULT_DIALOG),
             source_lang="auto",
             target_lang=target_lang
         )
@@ -958,8 +1131,8 @@ class TranslationManager(QObject):
             self._dialog.target_edit.clear()  # 清空旧结果，避免误以为直接翻译/总结
             self._dialog.set_loading()  # 翻译按钮置灰并显示翻译中...
 
-        # 2. 启动OCR线程
-        self._start_ocr_thread(pixmap)
+        # 2. 启动OCR线程（翻译通道）
+        self._start_ocr_thread(pixmap, RESULT_DIALOG)
 
     def summarize_from_image(
         self,
@@ -967,54 +1140,62 @@ class TranslationManager(QObject):
         target_lang: str = None,
     ):
         """
-        从图片进行OCR识别后，用大模型总结（复用翻译弹窗展示结果）。
+        从图片进行OCR识别后，用大模型总结。
 
-        流程与截图翻译一致，区别在 OCR 完成后调用大模型总结，
-        结果填入翻译弹窗的「译文区」（总结模式下视为总结区）。
+        使用**独立的总结窗口**（不会被翻译窗口复用，也不会覆盖先前的译文），
+        流程与截图翻译一致，区别在 OCR 完成后调用大模型总结；
+        总结使用自己的语言设置（``summary_target_lang``）与独立的请求通道。
+
+        Args:
+            pixmap: QPixmap 图片（已是独立副本）
+            target_lang: 本次总结语言；不传则用配置里的总结语言
         """
-        from settings import get_tool_settings_manager
         from PySide6.QtGui import QPixmap
 
-        # 总结与翻译共用同一个目标语言配置（translation_target_lang）。
-        target_lang = self.configured_target_lang()
+        # 总结语言独立记忆（设置项 summary_target_lang，未设置时跟随翻译语言）
+        target_lang = target_lang or self.configured_summary_target_lang()
         self._target_lang = target_lang
 
-        # 进入总结模式：复用同一弹窗，但语义切到「总结」
-        self._summary_mode = True
-        self._stop_current_thread()
-        self._activate_surface("dialog")
+        # 只作废总结通道上一次未完成的请求，翻译窗口不受影响
+        self._stop_current_thread(RESULT_SUMMARY)
+        self._activate_surface(RESULT_SUMMARY)
 
-        # 1. 显示翻译弹窗（进入总结模式）
+        # 1. 显示总结窗口（创建时即固定为总结语义）
+        #    另一个主窗口（翻译）已打开时层叠错开，避免两个窗口完全重叠。
         self._ensure_dialog(
+            RESULT_SUMMARY,
             text="",  # 初始为空
-            position=None,
+            position=self._cascade_position(RESULT_SUMMARY),
             source_lang="auto",
             target_lang=target_lang,
         )
-        if self._is_dialog_valid():
-            self._dialog.set_mode("summary")
-            self._dialog.set_backend_badge(
-                self._summary_backend_name(), self._summary_ready()
-            )
+        # 语言框里显示的就是本次总结语言（用户改过则以语言框为准）
+        self._target_lang = self._dialog_target_lang(RESULT_SUMMARY) or target_lang
 
         # 未配置大模型时直接报错
         if not self._summary_ready():
-            if self._is_dialog_valid():
-                self._dialog.set_summary_error(self.tr("LLM not configured"))
+            if self._surface_valid(RESULT_SUMMARY):
+                self._dialogs[RESULT_SUMMARY].set_summary_error(
+                    self.tr("LLM not configured")
+                )
             return
 
         # 2. 原文区先显示「识别中...」
-        if self._is_dialog_valid():
-            self._dialog.source_edit.setPlainText(self._dialog.tr("Recognizing..."))
-            self._dialog.source_edit.setEnabled(False)
-            self._dialog.target_edit.clear()  # 清空旧结果，避免误以为直接翻译/总结
-            self._dialog.set_summary_loading()  # 总结按钮置灰并显示总结中...
+        if self._surface_valid(RESULT_SUMMARY):
+            dialog = self._dialogs[RESULT_SUMMARY]
+            dialog.source_edit.setPlainText(dialog.tr("Recognizing..."))
+            dialog.source_edit.setEnabled(False)
+            dialog.target_edit.clear()  # 清空上一次总结结果
+            dialog.set_summary_loading()  # 总结按钮置灰并显示总结中...
 
-        # 3. 启动OCR线程，完成后回调里分流到总结
-        self._start_ocr_thread(pixmap)
+        # 3. 启动总结通道的 OCR 线程，完成后回调里分流到总结
+        self._start_ocr_thread(pixmap, RESULT_SUMMARY)
 
-    def _start_ocr_thread(self, pixmap):
+    def _start_ocr_thread(self, pixmap, surface: str = RESULT_DIALOG):
         """启动统一 OCR 识别线程（ocr.pipeline，与 OCR 复制共用同一条流程）
+
+        翻译与总结各持有自己的 OCR 线程槽：新一次总结不会取消/断开翻译窗口
+        还在跑的 OCR（反之亦然），两条通道互不打断。
 
         关键设计：在主线程完成 QPixmap → QImage.copy() 转换，
         子线程只接收不含 GUI 资源的纯数据（QImage 是值类型，线程安全），
@@ -1032,42 +1213,62 @@ class TranslationManager(QObject):
         from ocr.pipeline import OcrTextThread
 
         # 旧线程：断开信号（结果被丢弃）再等待自然结束，绝不使用 terminate()
-        if hasattr(self, '_ocr_thread') and self._ocr_thread and self._ocr_thread.isRunning():
-            self._ocr_thread.cancel()
+        previous = self._ocr_thread if surface != RESULT_SUMMARY else self._summary_ocr_thread
+        if previous is not None and previous.isRunning():
+            previous.cancel()
             from core.qt_utils import safe_disconnect
-            safe_disconnect(self._ocr_thread.finished_signal)
+            safe_disconnect(previous.finished_signal)
             # 不等待（旧线程在后台跑完即可），避免阻塞主线程
-            self._ocr_thread.finished.connect(self._ocr_thread.deleteLater)
-        
+            previous.finished.connect(previous.deleteLater)
+
         # 创建并启动新线程
-        self._ocr_thread = OcrTextThread(image)
-        self._ocr_thread.finished_signal.connect(self._on_ocr_finished)
-        self._ocr_thread.start()
+        thread = OcrTextThread(image)
+        if surface == RESULT_SUMMARY:
+            self._summary_ocr_thread = thread
+            thread.finished_signal.connect(
+                lambda ok, text: self._on_ocr_finished(ok, text, RESULT_SUMMARY)
+            )
+        else:
+            self._ocr_thread = thread
+            thread.finished_signal.connect(self._on_ocr_finished)
+        thread.start()
         
         log_debug("OCR线程已启动", "Translation")
     
-    def _on_ocr_finished(self, success: bool, result: str):
-        """OCR识别完成回调"""
-        log_debug(f"OCR完成: success={success}, result_len={len(result) if result else 0}", "Translation")
-        
-        # 清理pixmap引用
-        self._pending_pixmap = None
-        
-        if not self._is_dialog_valid():
-            log_debug("翻译窗口已关闭，忽略OCR结果", "Translation")
+    def _on_ocr_finished(self, success: bool, result: str, surface: str = RESULT_DIALOG):
+        """OCR识别完成回调（按表面的独立通道分流：翻译 / 总结）"""
+        log_debug(
+            f"OCR完成({surface}): success={success}, "
+            f"result_len={len(result) if result else 0}",
+            "Translation",
+        )
+
+        if not self._surface_valid(surface):
+            log_debug(f"{surface} 窗口已关闭，忽略OCR结果", "Translation")
             return
-        
+
+        dialog = self._dialogs[surface]
         # 恢复编辑状态
-        self._dialog.source_edit.setEnabled(True)
-        
+        dialog.source_edit.setEnabled(True)
+
         if success and result:
             # 填入识别的文本
-            self._dialog.source_edit.setPlainText(result)
+            dialog.source_edit.setPlainText(result)
             log_info(f"OCR识别成功: {result[:50]}...", "Translation")
 
-            if self._dialog_user_selected_target_lang():
+            if surface == RESULT_SUMMARY:
+                # 总结：语言取自总结窗口语言框（不按源文自动定方向）
+                target_lang = (
+                    self._dialog_target_lang(surface)
+                    or self.configured_summary_target_lang()
+                )
+                self._target_lang = target_lang
+                self._start_summary(text=result, target_lang=target_lang)
+                return
+
+            if self._dialog_user_selected_target_lang(surface):
                 # 用户在 OCR 期间自己改了语言 → 以用户为准
-                target_lang = self._dialog.get_target_lang() or self.configured_target_lang()
+                target_lang = dialog.get_target_lang() or self.configured_target_lang()
             else:
                 # 方向按 OCR 出的文字判断（全中文→英语，其余/混排→中文）；
                 # 语言框仍显示配置语言，不被方向改写。
@@ -1075,23 +1276,19 @@ class TranslationManager(QObject):
             self._target_lang = target_lang
             self._log_direction(target_lang, result)
 
-            if self._summary_mode:
-                # 总结模式：OCR 完成后调用大模型总结
-                self._start_summary(text=result, target_lang=target_lang)
-            else:
-                # 自动开始翻译
-                self._start_translation(
-                    text=result,
-                    target_lang=target_lang,
-                    source_lang="auto",
-                    result_target="dialog",
-                )
+            # 自动开始翻译
+            self._start_translation(
+                text=result,
+                target_lang=target_lang,
+                source_lang="auto",
+                result_target=RESULT_DIALOG,
+            )
         else:
             # 显示错误信息，并恢复按钮可点击状态
-            self._dialog.set_busy(False)
-            self._dialog.target_edit.clear()
-            self._dialog.source_edit.setPlainText("")
-            self._dialog.source_edit.setPlaceholderText(
+            dialog.set_busy(False)
+            dialog.target_edit.clear()
+            dialog.source_edit.setPlainText("")
+            dialog.source_edit.setPlaceholderText(
                 result or self.tr("No text recognized")
             )
             log_error(f"OCR识别失败: {result}", "Translation")

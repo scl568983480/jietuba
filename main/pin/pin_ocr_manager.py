@@ -13,13 +13,15 @@ from core.logger import log_exception
 class _OCRThread(QThread):
     """OCR 异步识别线程（内部类）
     
-    线程安全设计：接收纯 QImage（值类型拷贝），不持有 QWidget 引用。
+    线程安全设计：接收纯 QImage（值类型拷贝）与预处理参数快照，不持有 QWidget 引用。
     即使窗口在识别期间关闭，线程也不会访问悬空对象。
+    识别走统一 OCR 流程（ocr.pipeline），与截图翻译/总结/OCR 复制完全一致。
     """
 
-    def __init__(self, image, parent=None):
+    def __init__(self, image, options=None, parent=None):
         super().__init__(parent)
         self._image = image  # QImage（值类型，线程安全）
+        self._options = options
         self.result = None
         self.prepared_items = None
         self.prepared_union_rect = None
@@ -27,10 +29,11 @@ class _OCRThread(QThread):
     def run(self):
         start_time = time.time()
         try:
-            from ocr import recognize_text
+            from ocr.pipeline import recognize_image_dict
             from pin.ocr_text_layer import OCRTextLayer
 
-            self.result = recognize_text(self._image, return_format="dict")
+            # 统一流程：预处理（灰度化 / 小图放大）+ 文字框坐标还原到原图像素空间
+            self.result = recognize_image_dict(self._image, self._options)
             if self.result and isinstance(self.result, dict):
                 self.prepared_items, self.prepared_union_rect = (
                     OCRTextLayer.prepare_ocr_items(self.result)
@@ -150,24 +153,52 @@ class PinOCRManager:
     def _start_recognition(self):
         """启动异步 OCR 识别线程
         
-        关键：在主线程获取图像（QImage 值类型拷贝），
+        关键：在主线程获取图像（QImage 值类型拷贝）并解析预处理设置，
         子线程只接收纯数据，不持有任何 QWidget 引用。
         """
         pixmap = self._win._base_pixmap
         if not pixmap:
             return
-        original_width = pixmap.width()
-        original_height = pixmap.height()
 
-        # 主线程获取图像（安全），传给子线程
-        image = self._win.get_current_image()
+        # 只识别纯底图（不含绘制/标注），且用原始像素：
+        # 1) 与截图侧「只识别选区底图」一致，标注不干扰文字识别；
+        # 2) 文字框坐标所在的像素空间 = 底图尺寸，与文字层的映射基准对齐。
+        # 旧代码用 get_current_image()（尺寸 = 底图 × dpr，且含绘制层），
+        # 但坐标基准给的是底图尺寸，在非 100% 缩放的显示器上（本机 dpr≈1.146）
+        # 会让所有文字框整体偏大 dpr 倍，点选错位。
+        image = self._win.get_ocr_image()
+        if image is None or image.isNull():
+            log_warning("钉图底图不可用，跳过 OCR", "OCR")
+            return
+        original_width = image.width()
+        original_height = image.height()
 
-        log_debug("开始异步识别文字...", "OCR")
-        self.ocr_thread = _OCRThread(image, parent=self._win)
+        # 预处理设置在主线程解析后快照给子线程（统一 OCR 流程）
+        from ocr.pipeline import resolve_options
+
+        options = resolve_options(self._cfg)
+
+        log_info(
+            f"钉图 OCR 输入 {original_width}x{original_height}，"
+            f"灰度={options.grayscale} 放大={options.upscale} "
+            f"放大上限={options.max_scale}",
+            "OCR",
+        )
+        self.ocr_thread = _OCRThread(image, options, parent=self._win)
         self.ocr_thread.finished.connect(
             lambda: self._on_finished(original_width, original_height)
         )
         self.ocr_thread.start()
+
+    def _describe_union_rect(self) -> str:
+        """文字层整体包围盒（原图像素坐标），便于排查"点不到文字"。"""
+        rect = getattr(self.ocr_thread, "prepared_union_rect", None)
+        if rect is None:
+            return "无"
+        return (
+            f"x={rect.x():.0f} y={rect.y():.0f} "
+            f"w={rect.width():.0f} h={rect.height():.0f}"
+        )
 
     def _on_finished(self, original_width: int, original_height: int):
         """OCR 线程完成回调（主线程）"""
@@ -204,6 +235,12 @@ class PinOCRManager:
                     original_width,
                     original_height,
                 )
+                # 文字层是全透明的：识别完成后短暂标出文字区域，
+                # 让用户一眼看到"哪里有字、可以选"
+                try:
+                    self.ocr_text_layer.flash_text_regions()
+                except Exception as exc:
+                    log_exception(exc, "文字区域提示")
 
                 text_count = len(self.ocr_thread.prepared_items)
                 if text_count > 0:
@@ -214,7 +251,11 @@ class PinOCRManager:
                         log_info("OCR 完成，执行等待中的翻译", "Translate")
                         self._win._on_translate_clicked()
 
-                log_info(f"钉图文字层已就绪，识别到 {text_count} 个文字块", "OCR")
+                log_info(
+                    f"钉图文字层已就绪，识别到 {text_count} 个文字块"
+                    f"（文本区域 {self._describe_union_rect()}）",
+                    "OCR",
+                )
         except Exception as e:
             log_error(f"加载OCR结果失败: {e}", "OCR")
             import traceback

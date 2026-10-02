@@ -13,7 +13,7 @@ ocr_text_layer.py - OCR 可交互文字层（钉图专用）
 """
 import unicodedata
 from PySide6.QtWidgets import QWidget, QApplication
-from PySide6.QtCore import Qt, QRect, QPoint, QRectF, Signal, QEvent
+from PySide6.QtCore import Qt, QRect, QPoint, QRectF, Signal, QEvent, QTimer
 from PySide6.QtGui import QPainter, QPen, QColor, QBrush, QCursor, QFont, QFontMetrics
 from typing import List, Dict, Optional, Tuple
 from core import log_info, log_debug, safe_event
@@ -148,6 +148,17 @@ class OCRTextItem:
 class OCRTextLayer(QWidget):
     """OCR 可交互文字层（完全透明，Word 风格文字选择）"""
     
+    # 精确命中容差（拖拽过程中的判定沿用原行为）
+    _HIT_MARGIN = 5
+    # 「按下 / 光标」判定的最小宽松容差：在行高、行长之外再放宽这么多像素，
+    # 免得差几个像素就被当成空白区（那会变成拖动钉图窗口，选不中文字）
+    _PRESS_MIN_MARGIN = 10
+    
+    # 识别区域提示色：文字层是全透明的，不标出来用户看不出哪里有文字可选
+    _FLASH_COLOR = QColor(100, 150, 255, 56)
+    _HOVER_COLOR = QColor(100, 150, 255, 72)
+    _OUTLINE_COLOR = QColor(100, 150, 255, 150)
+    
     def __init__(self, parent=None, original_width: int = 100, original_height: int = 100):
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
@@ -186,6 +197,10 @@ class OCRTextLayer(QWidget):
         
         # 当前鼠标是否在文字上
         self._mouse_on_text = False
+        # 当前鼠标所在的文字块（用于悬浮提示），None 表示不在文字上
+        self._hover_item_idx: Optional[int] = None
+        # 识别完成后短暂标出所有文字区域
+        self._flash = False
         
         # 懒加载标志：字符位置是否已计算（优化加载性能）
         self._char_positions_calculated = False
@@ -247,15 +262,33 @@ class OCRTextLayer(QWidget):
         if not self._char_positions_calculated and self.text_items:
             self.recalculate_char_positions()
 
+    def _hit_rect(self, item, scale_x: float, scale_y: float) -> QRect:
+        """文字块的「宽松命中框」：用于鼠标按下与光标形状判定。
+
+        文字框是紧贴每行文字的矩形，用户按在行间/边缘/行末留白时常常差几个像素。
+        旧实现只有 ±5px 容差，差一点就判为"不在文字上"，事件透传给钉图窗口 →
+        变成拖动窗口（而且一旦开始拖动，划过文字也不再选中），表现就是"选不中文字"。
+        这里按行高/行长放宽到「离这一行足够近就算命中」。
+        """
+        rect = item.get_scaled_rect(
+            scale_x, scale_y, self.original_width, self.original_height
+        )
+        if rect.height() > rect.width() * 1.5:  # 竖排文字：主轴是 y
+            cross = max(self._PRESS_MIN_MARGIN, rect.width())
+            along = rect.height() * 0.25 + self._PRESS_MIN_MARGIN
+            return rect.adjusted(-cross, -along, cross, along)
+        cross = max(self._PRESS_MIN_MARGIN, rect.height())
+        along = rect.width() * 0.25 + self._PRESS_MIN_MARGIN
+        return rect.adjusted(-along, -cross, along, cross)
+    
     def _is_pos_on_text(self, pos: QPoint) -> bool:
-        """给定本地坐标，判断是否在文字块扩展范围内"""
+        """给定本地坐标，判断是否在文字块的宽松命中范围内（光标形状与按下行为一致）"""
         if not self.text_items:
             return False
         
         scale_x, scale_y = self.get_scale_factors()
-        for idx, item in enumerate(self.text_items):
-            if item.contains(pos, scale_x, scale_y, self.original_width, self.original_height):
-                # log_debug(f"鼠标在文字块 {idx} 上: {item.text[:10]}...", "OCR层")
+        for item in self.text_items:
+            if self._hit_rect(item, scale_x, scale_y).contains(pos):
                 return True
         return False
     
@@ -468,6 +501,29 @@ class OCRTextLayer(QWidget):
         """检查是否有识别到的文字"""
         return bool(self.text_items)
     
+    def flash_text_regions(self, duration_ms: int = 1600):
+        """识别完成后短暂标出所有文字区域。
+
+        文字层完全透明，识别完什么都不显示，用户看不出"哪里有字可以选"。
+        这里把识别到的文字框统一淡蓝标出，过一会儿自动消失，不长期遮挡钉图。
+        """
+        if not self.text_items:
+            return
+        self._flash = True
+        self.update()
+        QTimer.singleShot(duration_ms, self._end_flash)
+    
+    def _end_flash(self):
+        self._flash = False
+        self.update()
+    
+    def _set_hover_item(self, item_idx: Optional[int]):
+        """更新悬浮文字块并重绘（用于悬浮高亮提示）。"""
+        if item_idx == self._hover_item_idx:
+            return
+        self._hover_item_idx = item_idx
+        self.update()
+    
     def clear_selection(self):
         """清除选择"""
         self.selection_start = None
@@ -549,16 +605,53 @@ class OCRTextLayer(QWidget):
     
     @safe_event
     def paintEvent(self, event):
-        """绘制选择高亮"""
-        if not self._is_active() or not self.selection_start or not self.selection_end:
+        """绘制：识别区域提示 / 悬浮高亮 / 选择高亮"""
+        if not self._is_active():
             return
+        
+        has_selection = bool(self.selection_start and self.selection_end)
+        if not (has_selection or self._flash or self._hover_item_idx is not None):
+            return
+        
+        if has_selection:
+            # 高亮绘制依赖每个文字块的字符位置；字符位置是懒加载的（平时只在鼠标
+            # 移动时算一次）。Ctrl+A 全选等不经过鼠标的路径此前没有触发计算，
+            # 于是下面 `if not item.char_positions: continue` 会把所有文字块跳过 ——
+            # 表现就是「全选能复制到内容，但屏幕上没有任何高亮」。
+            self._ensure_char_positions()
         
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        scale_x, scale_y = self.get_scale_factors()
+        outline_pen = QPen(self._OUTLINE_COLOR, 1)
         
-        # 绘制选择背景（半透明蓝色）
+        # 1) 识别完成后短暂标出所有识别到的文字区域：
+        #    文字层本身是全透明的，不标出来用户根本看不出哪里有字可选。
+        if self._flash:
+            for item in self.text_items:
+                rect = item.get_scaled_rect(
+                    scale_x, scale_y, self.original_width, self.original_height
+                )
+                painter.fillRect(rect, self._FLASH_COLOR)
+                painter.setPen(outline_pen)
+                painter.drawRect(rect)
+        
+        # 2) 悬浮在文字上时，标出"按下就会选中"的那一行
+        if not has_selection and self._hover_item_idx is not None:
+            if 0 <= self._hover_item_idx < len(self.text_items):
+                item = self.text_items[self._hover_item_idx]
+                rect = item.get_scaled_rect(
+                    scale_x, scale_y, self.original_width, self.original_height
+                )
+                painter.fillRect(rect, self._HOVER_COLOR)
+                painter.setPen(outline_pen)
+                painter.drawRect(rect)
+        
+        if not has_selection:
+            return
+        
+        # 3) 选择高亮（半透明蓝色）
         selection_color = QColor(100, 150, 255, 100)
-        painter.fillRect(self.rect(), Qt.GlobalColor.transparent)
         
         start_item_idx, start_char_idx = self.selection_start
         end_item_idx, end_char_idx = self.selection_end
@@ -567,8 +660,6 @@ class OCRTextLayer(QWidget):
         if start_item_idx > end_item_idx or (start_item_idx == end_item_idx and start_char_idx > end_char_idx):
             start_item_idx, end_item_idx = end_item_idx, start_item_idx
             start_char_idx, end_char_idx = end_char_idx, start_char_idx
-        
-        scale_x, scale_y = self.get_scale_factors()
         
         # 绘制每个被选中的文字块区域
         for idx in range(start_item_idx, end_item_idx + 1):
@@ -632,8 +723,9 @@ class OCRTextLayer(QWidget):
                     event.ignore()  # 让按钮处理
                     return
         
-        # 检查是否点击在文字上
-        item_idx, char_idx = self._get_char_at_pos(pos, strict=True)
+        # 检查是否点击在文字上（宽松命中：行间/行末/边缘差几像素也算，
+        # 否则会透传给钉图变成拖动窗口，用户就会觉得"选不中文字"）
+        item_idx, char_idx = self._get_char_at_pos(pos, strict=True, generous=True)
         
         if item_idx is None:
             # 点击在空白处：清除选择并透传给父窗口（允许拖动钉图）
@@ -730,19 +822,29 @@ class OCRTextLayer(QWidget):
             event.accept()
             return
 
-        # 动态切换光标
+        # 动态切换光标 + 悬浮高亮（让用户看到"这一行按下就会选中"）
         on_text = self._is_pos_on_text(pos)
         
         if on_text:
             # 在文字上：显示文本光标，接受事件
             self.setCursor(Qt.CursorShape.IBeamCursor)
             self._mouse_on_text = True
+            hover_idx, _ = self._get_char_at_pos(pos, strict=True, generous=True)
+            self._set_hover_item(hover_idx)
             event.accept()
         else:
             # 不在文字上：使用普通光标，透传事件给父窗口
             self.setCursor(Qt.CursorShape.ArrowCursor)
             self._mouse_on_text = False
+            self._set_hover_item(None)
             event.ignore()
+    
+    @safe_event
+    def leaveEvent(self, event):
+        """鼠标离开文字层：清掉悬浮提示"""
+        self._mouse_on_text = False
+        self._set_hover_item(None)
+        super().leaveEvent(event)
     
     @safe_event
     def mouseReleaseEvent(self, event):
@@ -761,17 +863,22 @@ class OCRTextLayer(QWidget):
             # 透传给父窗口
             event.ignore()
     
-    def _get_char_at_pos(self, pos: QPoint, strict: bool = False) -> Tuple[Optional[int], Optional[int]]:
+    def _get_char_at_pos(
+        self, pos: QPoint, strict: bool = False, generous: bool = False
+    ) -> Tuple[Optional[int], Optional[int]]:
         """获取指定位置的字符索引，支持跨行拖拽：
         1) 命中文字块：返回该块的字符索引
         2) 不命中时：
+           - generous=True: 取「最近的那一行」，但必须在宽松命中框内（鼠标按下用，
+             避免差几个像素就被判成空白区而变成拖动钉图窗口）
            - strict=True: 返回 (None, None)
            - strict=False: 选取垂直距离最近的文字块，并计算对应字符位置（用于拖拽选择）
         """
         scale_x, scale_y = self.get_scale_factors()
 
         # 粗略过滤：点击点不在 OCR 文本整体包围盒内时，直接返回
-        if strict and self._text_union_rect is not None:
+        # （宽松模式不做该过滤：文字框外一点点也应算命中，交由 _hit_rect 判定）
+        if strict and not generous and self._text_union_rect is not None:
             union_rect = QRect(
                 int(self._text_union_rect.x() * scale_x),
                 int(self._text_union_rect.y() * scale_y),
@@ -788,9 +895,6 @@ class OCRTextLayer(QWidget):
         for item_idx, item in enumerate(self.text_items):
             rect = item.get_scaled_rect(scale_x, scale_y, self.original_width, self.original_height)
 
-            # 使用扩展的检测范围
-            expanded_rect = rect.adjusted(-5, -5, 5, 5)
-
             # 计算最近的文字块：垂直文字用水平距离，水平文字用垂直距离
             is_vert = rect.height() > rect.width() * 1.5
             dist = abs(pos.x() - rect.center().x()) if is_vert else abs(pos.y() - rect.center().y())
@@ -799,11 +903,32 @@ class OCRTextLayer(QWidget):
                 nearest_idx = item_idx
                 nearest_rect = rect
 
+            if generous:
+                continue
+
+            # 使用扩展的检测范围
+            expanded_rect = rect.adjusted(
+                -self._HIT_MARGIN, -self._HIT_MARGIN,
+                self._HIT_MARGIN, self._HIT_MARGIN,
+            )
+
             if expanded_rect.contains(pos):
                 if not item.char_positions:
                     item.calculate_char_positions(rect)
                 char_idx = item.get_char_index_at_pos(pos.x(), rect, pos.y())
                 return (item_idx, char_idx)
+
+        # 宽松模式：相邻两行的命中框会重叠，所以只认「最近的一行」，
+        # 再看该点是否落在它的宽松命中框内
+        if generous:
+            if nearest_idx is None or nearest_rect is None:
+                return (None, None)
+            item = self.text_items[nearest_idx]
+            if not self._hit_rect(item, scale_x, scale_y).contains(pos):
+                return (None, None)
+            if not item.char_positions:
+                item.calculate_char_positions(nearest_rect)
+            return (nearest_idx, item.get_char_index_at_pos(pos.x(), nearest_rect, pos.y()))
 
         # 如果是严格模式，未命中则返回 None
         if strict:
@@ -863,6 +988,8 @@ class OCRTextLayer(QWidget):
         # Ctrl+A: 全选所有文字
         elif event.modifiers() & Qt.KeyboardModifier.ControlModifier and event.key() == Qt.Key.Key_A:
             if self.text_items:
+                # 先补算字符位置，否则全选后虽然能复制，但高亮画不出来
+                self._ensure_char_positions()
                 self.selection_start = (0, 0)
                 self.selection_end = (len(self.text_items) - 1, len(self.text_items[-1].text))
                 self.update()

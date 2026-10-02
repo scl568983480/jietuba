@@ -346,6 +346,7 @@ class TranslationDialog(FramelessWindow):
         position: QPoint | None = None,
         source_lang: str = "auto",
         target_lang: str = "ZH",
+        target_lang_setting_key: str = "translation_target_lang",
     ):
         super().__init__(parent)
         self.original_text = original_text
@@ -355,9 +356,11 @@ class TranslationDialog(FramelessWindow):
         self._theme_name = "dark"
         self._palette = DARK
         self._tool_buttons: list[VectorToolButton] = []
+        # 语言框读写哪个设置项：翻译窗口与总结窗口各自独立记忆，互不覆盖
+        self._target_lang_setting_key = target_lang_setting_key
 
         config = get_tool_settings_manager()
-        saved_target_lang = config.get_app_setting("translation_target_lang", "")
+        saved_target_lang = self._saved_target_lang(config)
         self.target_lang = saved_target_lang or target_lang or "ZH"
         # 语言框里的目标语言是否是用户手动选的（False 表示还是默认值，
         # 此时允许按源文语种自动选择目标语言）。
@@ -641,6 +644,12 @@ class TranslationDialog(FramelessWindow):
             )
             self.target_edit.setPlainText(f"{prefix} {self._last_error_message}")
 
+    def _saved_target_lang(self, config) -> str:
+        """语言框初值：读本窗口对应的设置项（总结窗口跟随总结语言）。"""
+        if self._target_lang_setting_key == "summary_target_lang":
+            return config.get_summary_target_lang() or ""
+        return config.get_app_setting(self._target_lang_setting_key, "") or ""
+
     def _on_target_lang_changed(self, _index: int) -> None:
         # 程序化写回语言框（弹窗首次打开自动选定的目标语言）不算用户选择。
         if self._setting_target_lang:
@@ -651,9 +660,15 @@ class TranslationDialog(FramelessWindow):
         # 语言框发生变化即代表用户手动选定，此后不再按源文语种自动选语言。
         self.target_lang_selected_by_user = True
         config = get_tool_settings_manager()
-        config.set_app_setting("translation_target_lang", target_lang)
+        if self._target_lang_setting_key == "summary_target_lang":
+            config.set_summary_target_lang(target_lang)
+        else:
+            config.set_app_setting(self._target_lang_setting_key, target_lang)
         self.target_lang = target_lang
-        log_debug(f"Target language saved: {target_lang}", "Translation")
+        log_debug(
+            f"Target language saved ({self._target_lang_setting_key}): {target_lang}",
+            "Translation",
+        )
 
     def _on_toggle_pin(self, checked: bool) -> None:
         self._is_on_top = checked
@@ -718,9 +733,12 @@ class TranslationDialog(FramelessWindow):
 
     # ── 总结模式 ──────────────────────────────────────────
     def set_mode(self, mode: str) -> None:
-        """切换弹窗语义：'translate'（默认翻译）或 'summary'（总结）。
+        """设置窗口语义：'translate'（默认翻译）或 'summary'（总结）。
 
-        总结模式下复用同一套 UI，把「译文区」当作「总结区」，并隐藏
+        翻译与总结各自持有独立窗口，语义在窗口创建时一次固定
+        （见 ``TranslationManager._ensure_dialog``），之后不再来回切换。
+
+        总结语义下复用同一套 UI，把「译文区」当作「总结区」，并隐藏
         无意义的源语言选择 / 语言交换，底部按钮文案改为「总结」。
         """
         if mode not in ("translate", "summary"):
@@ -934,6 +952,7 @@ class TranslationLoadingDialog(TranslationDialog):
         position: QPoint | None = None,
         source_lang: str = "auto",
         target_lang: str = "ZH",
+        target_lang_setting_key: str = "translation_target_lang",
     ):
         super().__init__(
             original_text=original_text,
@@ -942,6 +961,7 @@ class TranslationLoadingDialog(TranslationDialog):
             position=position,
             source_lang=source_lang,
             target_lang=target_lang,
+            target_lang_setting_key=target_lang_setting_key,
         )
         if original_text.strip():
             self.set_loading()
