@@ -14,6 +14,11 @@ OCR 模块 - 文字识别功能
 - initialize_ocr: 初始化 OCR 引擎
 - recognize_text: 识别图像中的文字
 
+统一 OCR 流程（截图翻译 / 截图总结 / OCR 复制 / 长截图翻译总结 共用）：
+- recognize_image_text: 预处理 + 识别 + 合并文本
+- OcrTextThread: 统一的后台识别线程
+- prepare_image: 统一预处理（灰度化 + 小图放大）
+
 注意：OCRTextLayer（钉图文字选择层）已移至 pin 模块
 
 使用示例：
@@ -42,6 +47,14 @@ from .ocr_manager import (
     format_ocr_result_text
 )
 
+from .pipeline import (
+    OcrOptions,
+    OcrTextThread,
+    prepare_image,
+    recognize_image_text,
+    resolve_options,
+)
+
 __all__ = [
     'OCRManager',
     'is_ocr_available',
@@ -52,6 +65,11 @@ __all__ = [
     'recognize_text',
     'release_ocr_engine',
     'get_ocr_memory_status',
-    'format_ocr_result_text'
+    'format_ocr_result_text',
+    'OcrOptions',
+    'OcrTextThread',
+    'prepare_image',
+    'recognize_image_text',
+    'resolve_options',
 ]
  

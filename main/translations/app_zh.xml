@@ -91,6 +91,30 @@
         <source>OCR Settings</source>
         <translation>OCR设置</translation>
     </message>
+    <message>
+        <source>OCR Grayscale</source>
+        <translation>OCR 灰度化</translation>
+    </message>
+    <message>
+        <source>Convert the selection to grayscale before recognition.</source>
+        <translation>识别前把选区转为灰度图。</translation>
+    </message>
+    <message>
+        <source>Upscale Small Selections</source>
+        <translation>小选区放大</translation>
+    </message>
+    <message>
+        <source>Smoothly upscale small selections before recognition to improve accuracy.</source>
+        <translation>识别前平滑放大小选区，提升小字识别率。</translation>
+    </message>
+    <message>
+        <source>Max Upscale Factor</source>
+        <translation>放大倍数上限</translation>
+    </message>
+    <message>
+        <source>Upper limit of the upscale factor applied to small selections.</source>
+        <translation>小选区放大时的倍数上限。</translation>
+    </message>
 
     <!-- Setup Wizard -->
     <message>
@@ -3135,6 +3159,23 @@ SOFTWARE.</translation></message>
             <source>Text copied to clipboard</source>
             <translation>文字已复制到剪贴板</translation>
         </message>
+        <message>
+            <source>OCR is not available</source>
+            <translation>OCR 不可用</translation>
+        </message>
+        <message>
+            <source>No text recognized</source>
+            <translation>未识别到文字</translation>
+        </message>
+        <message>
+            <source>OCR recognition failed</source>
+            <translation>OCR 识别失败</translation>
+        </message>
+    </context>
+
+    <!-- ========== 统一 OCR 流程（截图翻译/总结/OCR复制共用） ========== -->
+    <context>
+        <name>OcrPipeline</name>
         <message>
             <source>OCR is not available</source>
             <translation>OCR 不可用</translation>

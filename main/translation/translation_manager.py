@@ -1014,68 +1014,23 @@ class TranslationManager(QObject):
         self._start_ocr_thread(pixmap)
 
     def _start_ocr_thread(self, pixmap):
-        """启动OCR识别线程
-        
-        关键设计：在主线程完成 QPixmap → QImage.copy() 转换，
-        子线程只接收不含 GUI 资源的纯数据（QImage 是值类型，线程安全）。
-        """
-        from PySide6.QtCore import QThread, Signal
-        from PySide6.QtGui import QImage
+        """启动统一 OCR 识别线程（ocr.pipeline，与 OCR 复制共用同一条流程）
 
+        关键设计：在主线程完成 QPixmap → QImage.copy() 转换，
+        子线程只接收不含 GUI 资源的纯数据（QImage 是值类型，线程安全），
+        预处理参数也在主线程快照后交给子线程。
+        """
         # ── 主线程完成 GUI 资源转换（QPixmap 不能跨线程访问）──
         if pixmap is None or pixmap.isNull():
             log_debug("传入 pixmap 为空，跳过OCR", "Translation")
             return
-        image: QImage = pixmap.toImage().copy()  # 深拷贝，线程安全
+        image = pixmap.toImage().copy()  # 深拷贝，线程安全
         if image.isNull():
             log_debug("QImage 转换失败，跳过OCR", "Translation")
             return
 
-        class OCRThread(QThread):
-            """OCR识别线程。只持有 QImage（值类型），不持有任何 QWidget。"""
-            finished_signal = Signal(bool, str)  # (成功, 识别文本或错误信息)
-            
-            def __init__(self, image: QImage):
-                super().__init__()
-                self._image = image
-                self._cancelled = False
+        from ocr.pipeline import OcrTextThread
 
-            def cancel(self):
-                """请求取消（OCR 是同步 FFI 调用，无法中断，结果会被 disconnect 丢弃）"""
-                self._cancelled = True
-            
-            def run(self):
-                try:
-                    from ocr import is_ocr_available, recognize_text, format_ocr_result_text
-                    
-                    if self._cancelled:
-                        return
-
-                    if not is_ocr_available():
-                        self.finished_signal.emit(False, "OCR功能不可用")
-                        return
-                    
-                    # 执行OCR识别，使用dict格式获取完整信息（含坐标）
-                    result = recognize_text(self._image, return_format="dict")
-
-                    if self._cancelled:
-                        return
-
-                    if result and isinstance(result, dict) and result.get('code') == 100:
-                        # 使用公共函数处理：按阅读顺序，同行合并
-                        text = format_ocr_result_text(result)
-                        if text and text.strip():
-                            self.finished_signal.emit(True, text)
-                        else:
-                            self.finished_signal.emit(False, "未识别到文字")
-                    else:
-                        self.finished_signal.emit(False, "未识别到文字")
-                        
-                except Exception as e:
-                    self.finished_signal.emit(False, f"OCR识别失败: {str(e)}")
-                finally:
-                    self._image = None  # 释放图像数据
-        
         # 旧线程：断开信号（结果被丢弃）再等待自然结束，绝不使用 terminate()
         if hasattr(self, '_ocr_thread') and self._ocr_thread and self._ocr_thread.isRunning():
             self._ocr_thread.cancel()
@@ -1085,7 +1040,7 @@ class TranslationManager(QObject):
             self._ocr_thread.finished.connect(self._ocr_thread.deleteLater)
         
         # 创建并启动新线程
-        self._ocr_thread = OCRThread(image)
+        self._ocr_thread = OcrTextThread(image)
         self._ocr_thread.finished_signal.connect(self._on_ocr_finished)
         self._ocr_thread.start()
         
@@ -1136,5 +1091,7 @@ class TranslationManager(QObject):
             self._dialog.set_busy(False)
             self._dialog.target_edit.clear()
             self._dialog.source_edit.setPlainText("")
-            self._dialog.source_edit.setPlaceholderText(result or "识别失败")
+            self._dialog.source_edit.setPlaceholderText(
+                result or self.tr("No text recognized")
+            )
             log_error(f"OCR识别失败: {result}", "Translation")

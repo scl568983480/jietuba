@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """Mock ConfigManager — 用于独立调试 SettingsDialog"""
 import os
 import sys
@@ -36,8 +36,10 @@ APP_DEFAULT_SETTINGS = {
     "ocr_enabled": True,
     "ocr_engine": "windows_media_ocr",
     "ocr_grayscale_enabled": False,
-    "ocr_upscale_enabled": False,
-    "ocr_upscale_factor": 2.0,
+    "ocr_upscale_enabled": True,
+    "ocr_upscale_factor": 4.0,
+    "ocr_grayscale": False,
+    "ocr_upscale": True,
     "pin_auto_toolbar": True,
     "translation_provider": "openapi",
     "openapi_url": "",
@@ -105,9 +107,9 @@ class MockConfig:
     def set_ocr_engine(self, v): pass
     def get_ocr_grayscale_enabled(self): return False
     def set_ocr_grayscale_enabled(self, v): pass
-    def get_ocr_upscale_enabled(self): return False
+    def get_ocr_upscale_enabled(self): return True
     def set_ocr_upscale_enabled(self, v): pass
-    def get_ocr_upscale_factor(self): return 2.0
+    def get_ocr_upscale_factor(self): return 4.0
     def set_ocr_upscale_factor(self, v): pass
     def get_pin_auto_toolbar(self): return True
     def set_pin_auto_toolbar(self, v): pass

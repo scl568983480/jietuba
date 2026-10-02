@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """截图设置页 — Fluent Design"""
 
 from PySide6.QtWidgets import (
@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from ui.fluent_lite import (
     SwitchSettingCard, SettingCard as FSettingCard,
-    FluentIcon, ComboBox, CaptionLabel,
+    FluentIcon, ComboBox, DoubleSpinBox, CaptionLabel,
     PushButton,
 )
 from .components import SettingCardGroup, WhiteCard, apply_theme_text_style
@@ -160,6 +160,53 @@ def create_capture_page(dialog) -> QWidget:
         )
         ocr_engine_card.hBoxLayout.addSpacing(16)
         grp_ocr.addSettingCard(ocr_engine_card)
+
+        # 识别预处理 —— 截图翻译 / 截图总结 / OCR 复制 共用的统一 OCR 流程
+        grayscale_card = SwitchSettingCard(
+            FluentIcon.PALETTE,
+            dialog.tr("OCR Grayscale"),
+            dialog.tr("Convert the selection to grayscale before recognition."),
+            parent=grp_ocr,
+        )
+        grayscale_card.setChecked(
+            dialog.config_manager.get_ocr_grayscale_enabled()
+        )
+        dialog.ocr_grayscale_toggle = grayscale_card
+        grp_ocr.addSettingCard(grayscale_card)
+
+        upscale_card = SwitchSettingCard(
+            FluentIcon.FONT_SIZE,
+            dialog.tr("Upscale Small Selections"),
+            dialog.tr(
+                "Smoothly upscale small selections before recognition to improve accuracy."
+            ),
+            parent=grp_ocr,
+        )
+        upscale_card.setChecked(dialog.config_manager.get_ocr_upscale_enabled())
+        dialog.ocr_upscale_toggle = upscale_card
+        grp_ocr.addSettingCard(upscale_card)
+
+        scale_card = FSettingCard(
+            FluentIcon.FONT_SIZE,
+            dialog.tr("Max Upscale Factor"),
+            dialog.tr("Upper limit of the upscale factor applied to small selections."),
+            parent=grp_ocr,
+        )
+        dialog.ocr_scale_spinbox = DoubleSpinBox(scale_card)
+        dialog.ocr_scale_spinbox.setRange(1.0, 4.0)
+        dialog.ocr_scale_spinbox.setSingleStep(0.5)
+        dialog.ocr_scale_spinbox.setDecimals(1)
+        dialog.ocr_scale_spinbox.setValue(
+            dialog.config_manager.get_ocr_upscale_factor()
+        )
+        dialog.ocr_scale_spinbox.setFixedWidth(110)
+        dialog.ocr_scale_spinbox.setEnabled(upscale_card.isChecked())
+        upscale_card.checkedChanged.connect(dialog.ocr_scale_spinbox.setEnabled)
+        scale_card.hBoxLayout.addWidget(
+            dialog.ocr_scale_spinbox, 0, Qt.AlignmentFlag.AlignRight
+        )
+        scale_card.hBoxLayout.addSpacing(16)
+        grp_ocr.addSettingCard(scale_card)
     else:
         no_ocr_card = FSettingCard(
             FluentIcon.INFO,

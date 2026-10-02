@@ -181,9 +181,9 @@ class ToolSettingsManager(QObject):
         # OCR
         "ocr_enabled": True,                   # OCR功能启用
         "ocr_engine": "windows_media_ocr",    # OCR引擎类型 (windows_media_ocr 默认, ppocr_rust 备用)
-        "ocr_grayscale": False,                # OCR灰度转换（Windows OCR 不需要）
-        "ocr_upscale": True,                   # OCR图像放大（提升小字识别率）
-        "ocr_upscale_factor": 2.0,             # OCR放大倍数（1.0-3.0）
+        "ocr_grayscale": False,                # OCR灰度转换（统一 OCR 流程预处理；Windows OCR 不需要）
+        "ocr_upscale": True,                   # OCR小图放大（统一 OCR 流程预处理，提升小字识别率）
+        "ocr_upscale_factor": 4.0,             # OCR放大倍数上限（1.0-4.0；默认与旧 OCR 复制行为一致）
         
         # ==================== 3. 剪贴板 ====================
         "clipboard_enabled": True,             # 剪贴板监听启用
@@ -835,12 +835,16 @@ class ToolSettingsManager(QObject):
         self.qsettings.setValue("app/ocr_upscale", value)
     
     def get_ocr_upscale_factor(self) -> float:
-        """获取 OCR 放大倍数"""
+        """获取 OCR 放大倍数上限"""
         return self.qsettings.value("app/ocr_upscale_factor", self.APP_DEFAULT_SETTINGS["ocr_upscale_factor"], type=float)
     
     def set_ocr_upscale_factor(self, value: float):
-        """设置 OCR 放大倍数"""
-        self.qsettings.setValue("app/ocr_upscale_factor", value)
+        """设置 OCR 放大倍数上限（夹到 1.0-4.0）"""
+        try:
+            factor = float(value)
+        except (TypeError, ValueError):
+            factor = self.APP_DEFAULT_SETTINGS["ocr_upscale_factor"]
+        self.qsettings.setValue("app/ocr_upscale_factor", max(1.0, min(4.0, factor)))
     
     # ==================== 翻译设置 ====================
 

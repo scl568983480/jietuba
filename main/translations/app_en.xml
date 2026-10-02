@@ -91,6 +91,30 @@
         <source>OCR Settings</source>
         <translation>OCR Settings</translation>
     </message>
+    <message>
+        <source>OCR Grayscale</source>
+        <translation>OCR Grayscale</translation>
+    </message>
+    <message>
+        <source>Convert the selection to grayscale before recognition.</source>
+        <translation>Convert the selection to grayscale before recognition.</translation>
+    </message>
+    <message>
+        <source>Upscale Small Selections</source>
+        <translation>Upscale Small Selections</translation>
+    </message>
+    <message>
+        <source>Smoothly upscale small selections before recognition to improve accuracy.</source>
+        <translation>Smoothly upscale small selections before recognition to improve accuracy.</translation>
+    </message>
+    <message>
+        <source>Max Upscale Factor</source>
+        <translation>Max Upscale Factor</translation>
+    </message>
+    <message>
+        <source>Upper limit of the upscale factor applied to small selections.</source>
+        <translation>Upper limit of the upscale factor applied to small selections.</translation>
+    </message>
 
     <!-- Setup Wizard -->
     <message>
@@ -3013,6 +3037,23 @@ SOFTWARE.</translation></message>
             <source>Text copied to clipboard</source>
             <translation>Text copied to clipboard</translation>
         </message>
+        <message>
+            <source>OCR is not available</source>
+            <translation>OCR is not available</translation>
+        </message>
+        <message>
+            <source>No text recognized</source>
+            <translation>No text recognized</translation>
+        </message>
+        <message>
+            <source>OCR recognition failed</source>
+            <translation>OCR recognition failed</translation>
+        </message>
+    </context>
+
+    <!-- ========== Unified OCR pipeline (screenshot translate/summary/OCR copy) ========== -->
+    <context>
+        <name>OcrPipeline</name>
         <message>
             <source>OCR is not available</source>
             <translation>OCR is not available</translation>

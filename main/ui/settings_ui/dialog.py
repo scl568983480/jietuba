@@ -689,6 +689,18 @@ class SettingsDialog(FrostedFramelessDialog):
             index = self.ocr_engine_combo.findData(defaults["ocr_engine"])
             if index >= 0:
                 self.ocr_engine_combo.setCurrentIndex(index)
+        if hasattr(self, 'ocr_grayscale_toggle'):
+            self.ocr_grayscale_toggle.setChecked(
+                bool(defaults.get("ocr_grayscale", False))
+            )
+        if hasattr(self, 'ocr_upscale_toggle'):
+            self.ocr_upscale_toggle.setChecked(
+                bool(defaults.get("ocr_upscale", True))
+            )
+        if hasattr(self, 'ocr_scale_spinbox'):
+            self.ocr_scale_spinbox.setValue(
+                float(defaults.get("ocr_upscale_factor", 4.0))
+            )
 
     def _reset_log_page(self):
         defaults = self.config_manager.APP_DEFAULT_SETTINGS

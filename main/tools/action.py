@@ -262,7 +262,8 @@ class ActionTools:
         self._cleanup_and_close()
 
         # 3. 后台OCR识别，成功后复制到剪贴板（由控制器负责）
-        OcrCopyController.instance().copy(pixmap_copy)
+        #    统一 OCR 流程（ocr.pipeline），与截图翻译/总结完全一致
+        OcrCopyController.instance().copy(pixmap_copy, self.config_manager)
 
     def handle_screenshot_summary(self):
         """
