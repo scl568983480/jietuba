@@ -1,9 +1,13 @@
-﻿"""
+"""
 截图吧 - PP-OCR 版本打包脚本
 使用 onefile 模式（单文件）
 
 使用方式：
   直接运行此脚本，打包生成 jietuba.exe，携带 ppocr_rust，外置 models/ 模型目录
+
+OneOCR 运行时（oneocr.dll / oneocr.onemodel / onnxruntime.dll ≈ 109 MB）**不打包**：
+它们与 Windows 11「截图工具」自带的组件逐字节相同，运行时由 windows_media_ocr
+从系统目录（或 exe 同级 oneocr/）查找，找不到则退回 Windows.Media.Ocr。
 
 输出：
   dist/jietuba.exe
@@ -159,6 +163,15 @@ excludes = [
 ]
 
 if __name__ == '__main__':
+    import argparse
+
+    # --dist 用于"正在运行的旧 exe 锁住了 dist/jietuba.exe"这类情况：
+    # 先打包到别的目录，关掉旧进程后再复制过去。
+    _parser = argparse.ArgumentParser(description="打包 截图吧 (onefile)")
+    _parser.add_argument("--dist", default=DIST_DIR, help=f"输出目录（默认 {DIST_DIR}）")
+    _args = _parser.parse_args()
+    DIST_DIR = _args.dist
+
     os.chdir(REPO_DIR)
 
     print("=" * 60)
@@ -228,7 +241,9 @@ import os as _os
 from PyInstaller.utils.hooks import collect_all
 
 # 完整收集 windows_media_ocr：包含 oneocr_engine.pyd、旧 windows_media_ocr.pyd、
-# oneocr.dll、oneocr.onemodel、onnxruntime.dll 以及子模块隐式导入。
+# 以及子模块隐式导入。oneocr.dll / oneocr.onemodel / onnxruntime.dll（约 109 MB）
+# 会在下面被剔除：它们与 Windows 11「截图工具」自带的组件逐字节相同，
+# 运行时由 windows_media_ocr 自己从系统目录（或 exe 同级 oneocr/）查找。
 _wmo_datas, _wmo_binaries, _wmo_hiddenimports = collect_all('windows_media_ocr')
 
 a = Analysis(
@@ -310,6 +325,23 @@ def _keep_qm(entry):
     return locale in _KEEP_QM_LOCALES or locale.startswith('zh')
 a.datas = TOC([e for e in a.datas if _keep_qm(e)])
 
+# ── OneOCR 运行时外置：oneocr.dll / oneocr.onemodel / onnxruntime.dll ≈ 109 MB ──
+# 这三个文件与 Windows 11「截图工具」自带的组件逐字节相同（SHA256 一致），
+# windows_media_ocr 运行时会自己找：exe 同级 oneocr/ → %LOCALAPPDATA%\\Jietuba\\oneocr
+# → 包内 → 系统截图工具目录（注册表 AppModel 仓库 / 枚举 WindowsApps）。
+# 都找不到时自动退回 Windows.Media.Ocr，功能不中断。
+# 这是 exe 从 ~134 MB 降到 ~57 MB 的关键，别把它们加回来。
+_WMO_EXTERNAL_RUNTIME = {{'oneocr.dll', 'oneocr.onemodel', 'onnxruntime.dll'}}
+
+def _is_wmo_runtime(entry):
+    parts = _os.path.normpath(entry[0]).split(_os.sep)
+    if len(parts) < 2 or parts[0].lower() != 'windows_media_ocr':
+        return False
+    return parts[-1].lower() in _WMO_EXTERNAL_RUNTIME
+
+a.binaries = TOC([e for e in a.binaries if not _is_wmo_runtime(e)])
+a.datas = TOC([e for e in a.datas if not _is_wmo_runtime(e)])
+
 pyz = PYZ(a.pure)
 
 exe = EXE(
@@ -366,5 +398,9 @@ exe = EXE(
     print("=" * 60)
     print("打包完成！")
     print(f"可执行文件位置: {DIST_DIR}/{EXE_NAME}.exe")
+    exe_path = REPO_DIR / DIST_DIR / f"{EXE_NAME}.exe"
+    if exe_path.exists():
+        print(f"可执行文件大小: {exe_path.stat().st_size / 1048576:.2f} MB")
     print(f"模型目录(需与 exe 同级): {DIST_DIR}/models/")
+    print("OneOCR 运行时: 不打包，运行时从系统截图工具读取（见 windows_media_ocr）")
     print("=" * 60)

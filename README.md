@@ -52,6 +52,8 @@ python -m pip install gifrecorder-0.2.1-cp311-cp311-win_amd64.whl longstitch-0.3
 
 > **OCR 模型：** `ppocr_rust` 需要 `models/` 目录下的 PP-OCR ONNX 模型（`PP-OCRv6_det_small.onnx` + `PP-OCRv6_rec_small.onnx`），仓库已内置。打包发布后请将 `models/` 放在 exe 同级目录。
 
+> **OneOCR 运行时（不打包）：** `oneocr.dll` + `oneocr.onemodel` + `onnxruntime.dll` 合计约 109 MB，与 Windows 11「截图工具」自带的组件逐字节相同（SHA256 一致），因此**不再打进 exe**（打包体积从约 134 MB 降到约 57 MB）。`windows_media_ocr` 运行时会依次查找：环境变量 `JIETUBA_ONEOCR_DIR` → exe 同级 `oneocr/` → `%LOCALAPPDATA%\Jietuba\oneocr\` → 包内目录 → 系统截图工具安装目录。都找不到时自动退回 Windows.Media.Ocr（功能可用、精度略低），把上面三个文件放进 exe 同级 `oneocr/` 再重启即可恢复高精度引擎。
+
 **开发/构建依赖（可选）：**
 
 ```bash

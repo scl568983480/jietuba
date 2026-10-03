@@ -73,12 +73,25 @@ if OCR_VARIANT != "pp":
         except Exception:
             available_langs = []
         # 高精度引擎（通过 Rust FFI 调用系统组件）
+        # oneocr 运行时不再随 exe 打包（109 MB，与系统截图工具自带的一致），
+        # 由 windows_media_ocr 自己按优先级查找；这里把最终用的目录记进日志，
+        # 出问题时能一眼看出是"用了系统那份"还是"根本没找到"。
         try:
             WINDOS_OCR_AVAILABLE = windows_media_ocr.oneocr_available()
             if WINDOS_OCR_AVAILABLE:
-                _ocr_log("高精度引擎可用 (Rust FFI)", "INFO")
+                _ocr_log(
+                    "高精度引擎可用 (Rust FFI): "
+                    f"{windows_media_ocr.oneocr_runtime_dir()}",
+                    "INFO",
+                )
             else:
-                _ocr_log("高精度引擎不可用 (系统组件未找到)", "DEBUG")
+                _ocr_log(
+                    "高精度引擎不可用：未找到 OneOCR 运行时"
+                    "（系统截图工具缺失？可把 oneocr.dll / oneocr.onemodel / "
+                    "onnxruntime.dll 放进 exe 同级 oneocr\\ 或 "
+                    "%LOCALAPPDATA%\\Jietuba\\oneocr\\ 后重启）",
+                    "DEBUG",
+                )
         except Exception as e:
             WINDOS_OCR_AVAILABLE = False
             _ocr_log(f"高精度引擎检测失败: {e}", "DEBUG")
