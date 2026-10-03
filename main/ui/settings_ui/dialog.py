@@ -732,44 +732,10 @@ class SettingsDialog(FrostedFramelessDialog):
 
     def _reset_translation_page(self):
         defaults = self.config_manager.APP_DEFAULT_SETTINGS
-        if hasattr(self, 'amazon_translate_region_input'):
-            self.amazon_translate_region_input.setText(
-                defaults["amazon_translate_region"]
-            )
-        if hasattr(self, 'amazon_translate_access_key_input'):
-            self.amazon_translate_access_key_input.setText(
-                defaults["amazon_translate_access_key_id"]
-            )
-        if hasattr(self, 'amazon_translate_secret_key_input'):
-            self.amazon_translate_secret_key_input.setText(
-                defaults["amazon_translate_secret_access_key"]
-            )
-        if hasattr(self, 'amazon_translate_session_token_input'):
-            self.amazon_translate_session_token_input.setText(
-                defaults["amazon_translate_session_token"]
-            )
-        if hasattr(self, 'google_translate_api_key_input'):
-            self.google_translate_api_key_input.setText(
-                defaults["google_translate_api_key"]
-            )
-        if hasattr(self, 'azure_translate_api_key_input'):
-            self.azure_translate_api_key_input.setText(
-                defaults["azure_translate_api_key"]
-            )
-        if hasattr(self, 'azure_translate_region_input'):
-            self.azure_translate_region_input.setText(
-                defaults["azure_translate_region"]
-            )
-        if hasattr(self, 'azure_translate_endpoint_input'):
-            self.azure_translate_endpoint_input.setText(
-                defaults["azure_translate_endpoint"]
-            )
         if hasattr(self, 'translation_target_combo'):
             index = self.translation_target_combo.findData(defaults["translation_target_lang"])
             if index >= 0:
                 self.translation_target_combo.setCurrentIndex(index)
-        if hasattr(self, 'split_sentences_toggle'):
-            self.split_sentences_toggle.setChecked(defaults["translation_split_sentences"])
         if hasattr(self, 'preserve_formatting_toggle'):
             self.preserve_formatting_toggle.setChecked(defaults["translation_preserve_formatting"])
 
@@ -790,20 +756,15 @@ class SettingsDialog(FrostedFramelessDialog):
             self.openapi_model_input.setText(defaults["openapi_model"])
 
     def _update_provider_groups(self) -> None:
-        """根据当前翻译引擎，联动 LLM 页与翻译页中各分组的显隐。
+        """按当前翻译引擎联动各分组的显隐。
 
-        - Amazon/Google/Azure 分组（位于翻译页）按所选引擎显示对应一个；
-        - OpenAI（大模型）分组位于专属 LLM 页，始终可见；
-        - “忽略换行 / 保留格式”仅在使用 OpenAI 引擎时显示。
+        目前只剩 OpenAI 兼容接口（LLM 页），「忽略换行 / 保留格式」
+        跟随它一起显示；保留该方法是为了让引擎下拉的联动逻辑不变。
         """
         provider_id = self.translation_provider_combo.currentData()
-        self.amazon_translate_settings_group.setVisible(provider_id == "amazon")
-        self.google_translate_settings_group.setVisible(provider_id == "google")
-        self.azure_translate_settings_group.setVisible(provider_id == "azure")
-        if hasattr(self, "split_sentences_toggle"):
-            self.split_sentences_toggle.setVisible(provider_id == "openapi")
+        has_openai = provider_id == "openapi"
         if hasattr(self, "preserve_formatting_toggle"):
-            self.preserve_formatting_toggle.setVisible(provider_id == "openapi")
+            self.preserve_formatting_toggle.setVisible(has_openai)
 
     def _reset_clipboard_page(self):
         defaults = self.config_manager.APP_DEFAULT_SETTINGS
@@ -1034,42 +995,8 @@ class SettingsDialog(FrostedFramelessDialog):
             self.config_manager.set_openapi_model(
                 self.openapi_model_input.text().strip()
             )
-        if hasattr(self, 'amazon_translate_region_input'):
-            self.config_manager.set_amazon_translate_region(
-                self.amazon_translate_region_input.text().strip()
-            )
-        if hasattr(self, 'amazon_translate_access_key_input'):
-            self.config_manager.set_amazon_translate_access_key_id(
-                self.amazon_translate_access_key_input.text().strip()
-            )
-        if hasattr(self, 'amazon_translate_secret_key_input'):
-            self.config_manager.set_amazon_translate_secret_access_key(
-                self.amazon_translate_secret_key_input.text().strip()
-            )
-        if hasattr(self, 'amazon_translate_session_token_input'):
-            self.config_manager.set_amazon_translate_session_token(
-                self.amazon_translate_session_token_input.text().strip()
-            )
-        if hasattr(self, 'google_translate_api_key_input'):
-            self.config_manager.set_google_translate_api_key(
-                self.google_translate_api_key_input.text().strip()
-            )
-        if hasattr(self, 'azure_translate_api_key_input'):
-            self.config_manager.set_azure_translate_api_key(
-                self.azure_translate_api_key_input.text().strip()
-            )
-        if hasattr(self, 'azure_translate_region_input'):
-            self.config_manager.set_azure_translate_region(
-                self.azure_translate_region_input.text().strip()
-            )
-        if hasattr(self, 'azure_translate_endpoint_input'):
-            self.config_manager.set_azure_translate_endpoint(
-                self.azure_translate_endpoint_input.text().strip()
-            )
         if hasattr(self, 'translation_target_combo'):
             self.config_manager.set_translation_target_lang(self.translation_target_combo.currentData())
-        if hasattr(self, 'split_sentences_toggle'):
-            self.config_manager.set_translation_split_sentences(self.split_sentences_toggle.isChecked())
         if hasattr(self, 'preserve_formatting_toggle'):
             self.config_manager.set_translation_preserve_formatting(self.preserve_formatting_toggle.isChecked())
 
@@ -1230,11 +1157,6 @@ class SettingsDialog(FrostedFramelessDialog):
             "clipboard_hotkey_edit", "clipboard_hotkey_edit_2",
             "translation_hotkey_edit", "translation_hotkey_edit_2",
             "openapi_url_input", "openapi_api_key_input", "openapi_model_input",
-            "amazon_translate_region_input",
-            "amazon_translate_access_key_input",
-            "amazon_translate_secret_key_input",
-            "amazon_translate_session_token_input",
-            "google_translate_api_key_input",
         ):
             widget = getattr(self, attr, None)
             if widget is not None:
@@ -1290,18 +1212,13 @@ class SettingsDialog(FrostedFramelessDialog):
                       'translation_hotkey_edit', 'translation_hotkey_edit_2',
                       'clipboard_hotkey_edit_2', 'save_path_lbl', 'path_lbl',
                       'openapi_url_input', 'openapi_api_key_input',
-                      'openapi_model_input', 'amazon_translate_region_input',
-                      'amazon_translate_access_key_input',
-                      'amazon_translate_secret_key_input',
-                      'amazon_translate_session_token_input',
-                      'google_translate_api_key_input'):
+                      'openapi_model_input'):
             w = getattr(self, attr, None)
             if w is not None:
                 snap[attr] = w.text()
         # 开关类
         for attr in ('smart_toggle', 'save_toggle', 'ocr_enable_toggle',
                       'ocr_grayscale_toggle', 'ocr_upscale_toggle',
-                      'split_sentences_toggle',
                       'preserve_formatting_toggle', 'log_toggle',
                       'clipboard_enabled_toggle', 'clipboard_auto_paste_toggle',
                       'autostart_toggle', 'show_main_window_toggle',
@@ -1495,32 +1412,10 @@ class SettingsDialog(FrostedFramelessDialog):
             self.openapi_model_input.setText(
                 self.config_manager.get_openapi_model()
             )
-        if hasattr(self, 'amazon_translate_region_input'):
-            self.amazon_translate_region_input.setText(
-                self.config_manager.get_amazon_translate_region()
-            )
-        if hasattr(self, 'amazon_translate_access_key_input'):
-            self.amazon_translate_access_key_input.setText(
-                self.config_manager.get_amazon_translate_access_key_id()
-            )
-        if hasattr(self, 'amazon_translate_secret_key_input'):
-            self.amazon_translate_secret_key_input.setText(
-                self.config_manager.get_amazon_translate_secret_access_key()
-            )
-        if hasattr(self, 'amazon_translate_session_token_input'):
-            self.amazon_translate_session_token_input.setText(
-                self.config_manager.get_amazon_translate_session_token()
-            )
-        if hasattr(self, 'google_translate_api_key_input'):
-            self.google_translate_api_key_input.setText(
-                self.config_manager.get_google_translate_api_key()
-            )
         if hasattr(self, 'translation_target_combo'):
             index = self.translation_target_combo.findData(self.config_manager.get_app_setting("translation_target_lang", ""))
             if index >= 0:
                 self.translation_target_combo.setCurrentIndex(index)
-        if hasattr(self, 'split_sentences_toggle'):
-            self.split_sentences_toggle.setChecked(self.config_manager.get_translation_split_sentences())
         if hasattr(self, 'preserve_formatting_toggle'):
             self.preserve_formatting_toggle.setChecked(self.config_manager.get_translation_preserve_formatting())
 

@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """欢迎向导的共享页面骨架与视觉规范。"""
 
 from __future__ import annotations
@@ -464,23 +464,6 @@ def _dev_bootstrap():
         def get_translation_provider(self):
             return self._def("translation_provider", "openapi")
         def set_translation_provider(self, v): pass
-
-        def get_google_translate_api_key(self):
-            return self._def("google_translate_api_key", "")
-        def set_google_translate_api_key(self, v): pass
-
-        def get_amazon_translate_region(self):
-            return self._def("amazon_translate_region", "us-west-2")
-        def set_amazon_translate_region(self, v): pass
-        def get_amazon_translate_access_key_id(self):
-            return self._def("amazon_translate_access_key_id", "")
-        def set_amazon_translate_access_key_id(self, v): pass
-        def get_amazon_translate_secret_access_key(self):
-            return self._def("amazon_translate_secret_access_key", "")
-        def set_amazon_translate_secret_access_key(self, v): pass
-        def get_amazon_translate_session_token(self):
-            return self._def("amazon_translate_session_token", "")
-        def set_amazon_translate_session_token(self, v): pass
 
         def get_app_setting(self, key, default=None):
             return self._d.get(key, default)

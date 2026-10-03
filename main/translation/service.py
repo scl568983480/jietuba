@@ -84,32 +84,12 @@ def create_default_translation_service(config=None) -> TranslationService:
 
         config = get_tool_settings_manager()
 
-    from .providers import (
-        AmazonTranslateProvider,
-        AzureTranslateProvider,
-        GoogleTranslateProvider,
-        OpenAPITranslateProvider,
-    )
+    from .providers import OpenAPITranslateProvider
 
     registry = ProviderRegistry()
     registry.register(
         OpenAPITranslateProvider.provider_id,
         OpenAPITranslateProvider,
         display_name=OpenAPITranslateProvider.display_name,
-    )
-    registry.register(
-        AmazonTranslateProvider.provider_id,
-        AmazonTranslateProvider,
-        display_name=AmazonTranslateProvider.display_name,
-    )
-    registry.register(
-        GoogleTranslateProvider.provider_id,
-        GoogleTranslateProvider,
-        display_name=GoogleTranslateProvider.display_name,
-    )
-    registry.register(
-        AzureTranslateProvider.provider_id,
-        AzureTranslateProvider,
-        display_name=AzureTranslateProvider.display_name,
     )
     return TranslationService(registry, config)

@@ -36,22 +36,50 @@ def oneocr_release() -> None:
     oneocr_engine.release()
 
 
-def oneocr_recognize_raw(ptr: int, width: int, height: int, stride: int):
-    """Run OneOCR on raw BGRA/RGBA pixels and return the same shape as the old API.
+def _rect_from_quad(quad):
+    """四点坐标 (x1,y1,...,x4,y4) → {"x1".."y4"}（历史 API 的形状）。
 
-    The old native module returned a dict with a ``lines`` key.  Each line is
-    ``{"text": str, "bounding_rect": optional, "words": []}``.  We mirror that
-    here so existing callers continue to work.
+    注意：调用方（ocr_manager）按 x1..y4 四点读取，不能只给轴对齐的两个角。
     """
-    lines = oneocr_engine.recognize_raw(_runtime_dir(), ptr, width, height, stride)
+    if not quad or len(quad) < 8:
+        return None
+    return {
+        "x1": float(quad[0]), "y1": float(quad[1]),
+        "x2": float(quad[2]), "y2": float(quad[3]),
+        "x3": float(quad[4]), "y3": float(quad[5]),
+        "x4": float(quad[6]), "y4": float(quad[7]),
+    }
+
+
+def oneocr_recognize_raw(ptr: int, width: int, height: int, stride: int):
+    """Run OneOCR on raw BGRA/RGBA pixels and return the historical dict shape.
+
+    Each line is ``{"text": str, "bounding_rect": dict|None, "quad": list|None,
+    "words": [{"text", "bounding_rect", "quad", "confidence"}]}``.
+
+    ``bounding_rect`` 为四点矩形（x1,y1,x2,y2,x3,y3,x4,y4，与旧原生模块一致），
+    ``quad`` 为同样的扁平列表；DLL 不提供坐标时均为 None。
+    """
+    lines = oneocr_engine.recognize_lines(
+        _runtime_dir(), ptr, width, height, stride
+    )
     return {
         "lines": [
             {
-                "text": line,
-                "bounding_rect": None,
-                "words": [],
+                "text": text,
+                "bounding_rect": _rect_from_quad(quad),
+                "quad": list(quad) if quad else None,
+                "words": [
+                    {
+                        "text": word_text,
+                        "bounding_rect": _rect_from_quad(word_quad),
+                        "quad": list(word_quad) if word_quad else None,
+                        "confidence": float(confidence),
+                    }
+                    for word_text, word_quad, confidence in words
+                ],
             }
-            for line in lines
+            for text, quad, words in lines
         ]
     }
 

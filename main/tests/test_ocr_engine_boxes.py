@@ -8,7 +8,13 @@
 （Ctrl+A + 复制能拿到全文），但鼠标怎么点都命不中，看起来就是"没有文字/无法选中"。
 
 修复：需要坐标的调用方（need_boxes=True）改用带坐标的引擎：
-PP-OCR（实测最稳）→ Windows.Media.Ocr（兜底）；只要文本的调用方（翻译/复制）不受影响。
+PP-OCR（实测最稳）→ Windows.Media.Ocr（兜底）。
+
+后续修复（用户反馈：翻译/复制的文本**丢失换行与段落**）：
+只要文本的调用方（need_boxes=False）过去沿用同一个占位框
+`[[0,0],[100,0],[100,20],[0,20]]`，而 `format_ocr_result_text` 按 Y 坐标分行 ——
+所有行的中心 Y 都是 10，于是**全部被并成一行**，换行与段落全丢。
+现在不再编造坐标（`box=None`），由 `format_ocr_result_text` 按引擎给出的行序输出。
 """
 
 import pytest
@@ -106,11 +112,50 @@ def test_recognize_pixmap_falls_back_when_no_box_engine(manager, monkeypatch, no
 # ── oneocr 缺少坐标时的行为 ─────────────────────────────────────────
 
 class _FakeOneOcr:
-    """替身：只返回文本，不含坐标（与真实 Rust 接口一致）。"""
+    """替身：旧版行为 —— 只返回文本，不含坐标。"""
 
     @staticmethod
     def oneocr_recognize_raw(addr, w, h, stride):
         return {"lines": [{"text": "HELLO", "bounding_rect": None, "words": []}]}
+
+
+class _FakeOneOcrWithBoxes:
+    """替身：新版行为 —— 返回四点坐标与词级置信度。"""
+
+    QUAD = {
+        "x1": 10.0, "y1": 20.0, "x2": 90.0, "y2": 21.0,
+        "x3": 90.0, "y3": 40.0, "x4": 10.0, "y4": 41.0,
+    }
+
+    @staticmethod
+    def oneocr_recognize_raw(addr, w, h, stride):
+        return {
+            "lines": [
+                {
+                    "text": "HELLO",
+                    "bounding_rect": dict(_FakeOneOcrWithBoxes.QUAD),
+                    "quad": [10.0, 20.0, 90.0, 21.0, 90.0, 40.0, 10.0, 41.0],
+                    "words": [
+                        {"text": "HELLO", "bounding_rect": dict(_FakeOneOcrWithBoxes.QUAD),
+                         "quad": None, "confidence": 0.98},
+                    ],
+                }
+            ]
+        }
+
+
+class _FakeOneOcrMultiLine:
+    """替身：多行文本，同样没有坐标。"""
+
+    @staticmethod
+    def oneocr_recognize_raw(addr, w, h, stride):
+        return {
+            "lines": [
+                {"text": "第一行", "bounding_rect": None, "words": []},
+                {"text": "第二行", "bounding_rect": None, "words": []},
+                {"text": "第三行", "bounding_rect": None, "words": []},
+            ]
+        }
 
 
 @pytest.fixture
@@ -119,20 +164,48 @@ def fake_oneocr(monkeypatch):
     monkeypatch.setattr(ocr_module, "WINDOS_OCR_AVAILABLE", True)
 
 
-def test_oneocr_placeholder_box_when_boxes_not_needed(manager, fake_oneocr):
-    """只要文本时，沿用占位框（保证翻译/复制的文本行为不变）。"""
+def test_oneocr_without_boxes_does_not_fabricate_a_box(manager, fake_oneocr):
+    """只要文本时不再编造占位框：占位框会让按 Y 分行时把多行并成一行。"""
     result = manager._recognize_with_windos_ocr(_image(), "dict", need_boxes=False)
 
     assert result["code"] == 100
-    assert result["data"][0]["box"] == [[0, 0], [100, 0], [100, 20], [0, 20]]
+    assert result["data"][0]["box"] is None
     assert result["data"][0]["text"] == "HELLO"
 
 
+def test_oneocr_multiline_text_keeps_line_breaks(manager, monkeypatch):
+    """没有坐标时，多行文本必须原样保留换行（翻译/复制靠这个）。"""
+    from ocr.ocr_manager import format_ocr_result_text
+
+    monkeypatch.setattr(ocr_module, "windows_media_ocr", _FakeOneOcrMultiLine)
+    monkeypatch.setattr(ocr_module, "WINDOS_OCR_AVAILABLE", True)
+
+    result = manager._recognize_with_windos_ocr(_image(), "dict", need_boxes=False)
+
+    assert [item["text"] for item in result["data"]] == ["第一行", "第二行", "第三行"]
+    assert format_ocr_result_text(result) == "第一行\n第二行\n第三行"
+
+
 def test_oneocr_fails_when_boxes_needed(manager, fake_oneocr):
-    """需要坐标时报失败，让上层换用带坐标的引擎（而不是给出错误坐标）。"""
+    """旧版 DLL（无坐标导出）需要坐标时报失败，让上层换用带坐标的引擎。"""
     result = manager._recognize_with_windos_ocr(_image(), "dict", need_boxes=True)
 
     assert result["code"] != 100
+
+
+def test_oneocr_boxes_are_used_when_available(manager, monkeypatch):
+    """新版绑定返回四点坐标：需要坐标时直接用 oneocr，不再回退其它引擎。"""
+    monkeypatch.setattr(ocr_module, "windows_media_ocr", _FakeOneOcrWithBoxes)
+    monkeypatch.setattr(ocr_module, "WINDOS_OCR_AVAILABLE", True)
+
+    result = manager._recognize_with_windos_ocr(_image(), "dict", need_boxes=True)
+
+    assert result["code"] == 100
+    item = result["data"][0]
+    assert item["text"] == "HELLO"
+    assert item["box"] == [[10.0, 20.0], [90.0, 21.0], [90.0, 40.0], [10.0, 41.0]]
+    # 词级置信度会被汇总成该行的 score
+    assert item["score"] == 0.98
 
 
 # ── 统一流程请求坐标 ────────────────────────────────────────────────

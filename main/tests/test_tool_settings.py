@@ -191,22 +191,11 @@ class TestToolSettingsManager:
         assert manager.get_translation_provider() == "future-provider"
         assert manager.get_translation_provider_config("future-provider") == {}
 
-    def test_amazon_translation_provider_configuration(self, manager):
-        manager.set_amazon_translate_region("us-west-2")
-        manager.set_amazon_translate_access_key_id("access")
-        manager.set_amazon_translate_secret_access_key("secret")
-        manager.set_amazon_translate_session_token("token")
+    def test_retired_translation_providers_fall_back_to_openapi(self, manager):
+        """历史配置里指向已下线引擎时，读取应回落到 OpenAI 兼容 API。"""
+        manager.set_translation_provider("google")
+        assert manager.get_translation_provider() == "openapi"
 
-        assert manager.get_translation_provider_config("amazon") == {
-            "region": "us-west-2",
-            "access_key_id": "access",
-            "secret_access_key": "secret",
-            "session_token": "token",
-        }
-
-    def test_google_translation_provider_configuration(self, manager):
-        manager.set_google_translate_api_key("google-key")
-
-        assert manager.get_translation_provider_config("google") == {
-            "api_key": "google-key",
-        }
+        manager.qsettings.setValue("translation/active_provider", "amazon")
+        assert manager.get_translation_provider() == "openapi"
+        assert manager.get_translation_provider_config("amazon") == {}

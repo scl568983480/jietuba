@@ -613,6 +613,26 @@ class PinWindow(QWidget):
         else:
             log_warning("没有 OCR 结果也没有正在进行的 OCR", "Translate")
 
+    def _on_summary_clicked(self):
+        """总结按钮：对钉图内容做 OCR + 大模型总结（复用翻译弹窗展示结果）。"""
+        try:
+            from PySide6.QtGui import QPixmap
+            from translation import TranslationManager
+
+            # 与钉图 OCR 取同一张图（纯底图、原始像素）
+            image = self.get_ocr_image()
+            if image is None or image.isNull():
+                log_warning("钉图底图不可用，无法总结", "Summary")
+                return
+
+            log_info("钉图总结：启动 OCR + 大模型总结", "Summary")
+            TranslationManager.instance().summarize_from_image(
+                pixmap=QPixmap.fromImage(image)
+            )
+        except Exception as e:
+            log_error(f"钉图总结失败: {e}", "Summary")
+            log_exception(e, "钉图总结")
+
     # ==================================================================
     # 右键菜单
     # ==================================================================

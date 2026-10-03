@@ -1,22 +1,19 @@
 # -*- coding: utf-8 -*-
 """翻译设置页 — Fluent Design
 
-仅保留各云翻译服务商（Amazon / Google / Azure）的配置与翻译选项。
-大语言模型（LLM）相关的「翻译引擎」与 OpenAI 接口配置已拆到同级
-的 LLM 设置页（page_llm.py）。
+仅保留与翻译行为相关的选项（目标语言 / 忽略换行 / 保留格式）。
+翻译引擎本身只有 OpenAI 兼容接口，其 API 配置位于同级的 LLM 设置页
+（page_llm.py）。
 """
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QScrollArea,
+    QWidget, QVBoxLayout, QScrollArea,
 )
 from PySide6.QtCore import Qt
 from ui.fluent_lite import (
     SwitchSettingCard, SettingCard as FSettingCard,
     FluentIcon, ComboBox,
 )
-from .components import (
-    SettingCardGroup, apply_theme_text_style, _add_text_setting,
-)
+from .components import SettingCardGroup
 
 from translation.languages import TRANSLATION_LANGUAGES
 
@@ -32,84 +29,6 @@ def create_translation_page(dialog) -> QWidget:
     layout = QVBoxLayout(page)
     layout.setContentsMargins(0, 0, 10, 0)
     layout.setSpacing(20)
-
-    # ════ Amazon Translate ════
-    grp_amazon = SettingCardGroup(dialog.tr("Amazon Translate"), page)
-    dialog.amazon_translate_region_input = _add_text_setting(
-        dialog,
-        grp_amazon,
-        dialog.tr("AWS Region"),
-        dialog.config_manager.get_amazon_translate_region(),
-        "us-west-2",
-    )
-    dialog.amazon_translate_access_key_input = _add_text_setting(
-        dialog,
-        grp_amazon,
-        dialog.tr("Access Key ID"),
-        dialog.config_manager.get_amazon_translate_access_key_id(),
-        "AKIA...",
-    )
-    dialog.amazon_translate_secret_key_input = _add_text_setting(
-        dialog,
-        grp_amazon,
-        dialog.tr("Secret Access Key"),
-        dialog.config_manager.get_amazon_translate_secret_access_key(),
-        dialog.tr("Required"),
-        password=True,
-    )
-    dialog.amazon_translate_session_token_input = _add_text_setting(
-        dialog,
-        grp_amazon,
-        dialog.tr("Session Token"),
-        dialog.config_manager.get_amazon_translate_session_token(),
-        dialog.tr("Optional, for temporary credentials"),
-        password=True,
-    )
-    layout.addWidget(grp_amazon)
-
-    # ════ Google Cloud Translation ════
-    grp_google = SettingCardGroup(
-        dialog.tr("Google Cloud Translation"), page
-    )
-    dialog.google_translate_api_key_input = _add_text_setting(
-        dialog,
-        grp_google,
-        dialog.tr("Google API Key"),
-        dialog.config_manager.get_google_translate_api_key(),
-        "AIza...",
-        password=True,
-    )
-    layout.addWidget(grp_google)
-
-    # ════ Azure Translator ════
-    grp_azure = SettingCardGroup(dialog.tr("Azure Translator"), page)
-    dialog.azure_translate_api_key_input = _add_text_setting(
-        dialog,
-        grp_azure,
-        dialog.tr("Azure API Key"),
-        dialog.config_manager.get_azure_translate_api_key(),
-        "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-        password=True,
-    )
-    dialog.azure_translate_region_input = _add_text_setting(
-        dialog,
-        grp_azure,
-        dialog.tr("Azure Region"),
-        dialog.config_manager.get_azure_translate_region(),
-        "eastasia",
-    )
-    dialog.azure_translate_endpoint_input = _add_text_setting(
-        dialog,
-        grp_azure,
-        dialog.tr("Azure Endpoint"),
-        dialog.config_manager.get_azure_translate_endpoint(),
-        dialog.tr("Optional, use default if empty"),
-    )
-    layout.addWidget(grp_azure)
-
-    dialog.amazon_translate_settings_group = grp_amazon
-    dialog.google_translate_settings_group = grp_google
-    dialog.azure_translate_settings_group = grp_azure
 
     # ════ 翻译选项 ════
     grp_opts = SettingCardGroup(dialog.tr("Translation Options"), page)
@@ -140,17 +59,6 @@ def create_translation_page(dialog) -> QWidget:
     )
     lang_card.hBoxLayout.addSpacing(16)
     grp_opts.addSettingCard(lang_card)
-
-    # 忽略换行
-    split_card = SwitchSettingCard(
-        FluentIcon.ALIGNMENT,
-        dialog.tr("Ignore Line Breaks"),
-        dialog.tr("Merge multi-line text for better translation"),
-        parent=grp_opts,
-    )
-    split_card.setChecked(dialog.config_manager.get_translation_split_sentences())
-    dialog.split_sentences_toggle = split_card
-    grp_opts.addSettingCard(split_card)
 
     # 保留格式
     preserve_card = SwitchSettingCard(

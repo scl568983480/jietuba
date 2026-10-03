@@ -413,12 +413,12 @@ tools/
 
 ### translation/ — 翻译模块
 
-基于多翻译引擎（OpenAI 兼容 API / Google / Amazon / Azure）的文字翻译服务。
+基于 OpenAI 兼容 API 的文字翻译服务。
 
 ```
 translation/
 ├── __init__.py
-├── providers/              # 各翻译引擎适配器（openai / google / amazon / azure）
+├── providers/              # 翻译引擎适配器（openai）
 ├── languages.py            # 支持的语言列表与语言代码
 ├── translation_manager.py   # TranslationManager — 翻译窗口管理器（单例）
 ├── translation_dialog.py    # TranslationDialog / TranslationLoadingDialog — 翻译结果显示窗口
@@ -429,9 +429,10 @@ translation/
 ```
 
 **核心功能：**
-- 调用多引擎 API（OpenAI 兼容 API / Google / Amazon / Azure）进行文字翻译
+- 调用 OpenAI 兼容 API（chat-completions）进行文字翻译
 - 异步翻译，不阻塞 UI
 - 翻译结果弹窗显示，支持复制
+- 原文换行原样送给引擎（不做分句/合并等预处理）；**保留格式**＝在提示词里要求译文保持原文的段落与换行结构
 - 截图翻译与截图总结各自独立窗口：可先截图翻译再截图总结，两份结果同时保留、互不覆盖，各自在途请求也互不打断
 
 ---

@@ -45,16 +45,7 @@ APP_DEFAULT_SETTINGS = {
     "openapi_url": "",
     "openapi_api_key": "",
     "openapi_model": "",
-    "amazon_translate_region": "us-west-2",
-    "amazon_translate_access_key_id": "",
-    "amazon_translate_secret_access_key": "",
-    "amazon_translate_session_token": "",
-    "google_translate_api_key": "",
-    "azure_translate_api_key": "",
-    "azure_translate_region": "",
-    "azure_translate_endpoint": "",
     "translation_target_lang": "",
-    "translation_split_sentences": True,
     "translation_preserve_formatting": True,
     "clipboard_enabled": True,
     "clipboard_auto_paste": False,
@@ -124,39 +115,12 @@ class MockConfig:
     def get_translation_provider_config(self, provider_id):
         if provider_id == "openapi":
             return {"api_url": "", "api_key": "", "model": ""}
-        if provider_id == "amazon":
-            return {
-                "region": "us-west-2",
-                "access_key_id": "",
-                "secret_access_key": "",
-                "session_token": "",
-            }
-        if provider_id == "google":
-            return {"api_key": ""}
         return {}
-    def get_amazon_translate_region(self): return "us-west-2"
-    def set_amazon_translate_region(self, v): pass
-    def get_amazon_translate_access_key_id(self): return ""
-    def set_amazon_translate_access_key_id(self, v): pass
-    def get_amazon_translate_secret_access_key(self): return ""
-    def set_amazon_translate_secret_access_key(self, v): pass
-    def get_amazon_translate_session_token(self): return ""
-    def set_amazon_translate_session_token(self, v): pass
-    def get_google_translate_api_key(self): return ""
-    def set_google_translate_api_key(self, v): pass
-    def get_azure_translate_api_key(self): return ""
-    def set_azure_translate_api_key(self, v): pass
-    def get_azure_translate_region(self): return ""
-    def set_azure_translate_region(self, v): pass
-    def get_azure_translate_endpoint(self): return ""
-    def set_azure_translate_endpoint(self, v): pass
     def get_app_setting(self, key, default=None):
         if default is None:
             default = self.APP_DEFAULT_SETTINGS.get(key)
         return default
     def set_app_setting(self, key, v): pass
-    def get_translation_split_sentences(self): return True
-    def set_translation_split_sentences(self, v): pass
     def get_translation_preserve_formatting(self): return True
     def set_translation_preserve_formatting(self, v): pass
     def set_translation_target_lang(self, v): pass

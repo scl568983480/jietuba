@@ -95,6 +95,13 @@ class OpenAPITranslateProvider(TranslationProvider):
                 self._language_name(request.source_lang) or request.source_lang
             )
             system_parts.append(f"The source language is {source_name}.")
+        # 「保留格式」：要求译文保持与原文一致的段落与换行结构
+        if request.preserve_formatting:
+            system_parts.append(
+                "Preserve the original layout: keep the same paragraph breaks "
+                "and line breaks as the source text, and translate line by line "
+                "so that each source line has its own translated line."
+            )
         system_prompt = " ".join(system_parts)
 
         body = {

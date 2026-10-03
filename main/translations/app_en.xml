@@ -728,62 +728,6 @@ Replace it?</translation>
         <translation>Hide</translation>
     </message>
     <message>
-        <source>Amazon Translate</source>
-        <translation>Amazon Translate</translation>
-    </message>
-    <message>
-        <source>AWS Region</source>
-        <translation>AWS Region</translation>
-    </message>
-    <message>
-        <source>Access Key ID</source>
-        <translation>Access Key ID</translation>
-    </message>
-    <message>
-        <source>Secret Access Key</source>
-        <translation>Secret Access Key</translation>
-    </message>
-    <message>
-        <source>Required</source>
-        <translation>Required</translation>
-    </message>
-    <message>
-        <source>Session Token</source>
-        <translation>Session Token</translation>
-    </message>
-    <message>
-        <source>Optional, for temporary credentials</source>
-        <translation>Optional, for temporary credentials</translation>
-    </message>
-    <message>
-        <source>Google Cloud Translation</source>
-        <translation>Google Cloud Translation</translation>
-    </message>
-    <message>
-        <source>Google API Key</source>
-        <translation>Google API Key</translation>
-    </message>
-    <message>
-        <source>Azure Translator</source>
-        <translation>Azure Translator</translation>
-    </message>
-    <message>
-        <source>Azure API Key</source>
-        <translation>Azure API Key</translation>
-    </message>
-    <message>
-        <source>Azure Region</source>
-        <translation>Azure Region</translation>
-    </message>
-    <message>
-        <source>Azure Endpoint</source>
-        <translation>Azure Endpoint</translation>
-    </message>
-    <message>
-        <source>Optional, use default if empty</source>
-        <translation>Optional, use default if empty</translation>
-    </message>
-    <message>
         <source>Translation Options</source>
         <translation>Translation Options</translation>
     </message>
@@ -794,14 +738,6 @@ Replace it?</translation>
     <message>
         <source>Auto (System)</source>
         <translation>Auto (System)</translation>
-    </message>
-    <message>
-        <source>Ignore Line Breaks</source>
-        <translation>Ignore Line Breaks</translation>
-    </message>
-    <message>
-        <source>Merge multi-line text for better translation</source>
-        <translation>Merge multi-line text for better translation</translation>
     </message>
     <message>
         <source>Preserve Formatting</source>
@@ -1399,14 +1335,6 @@ Replace it?</translation>
     <message>
         <source>Advanced Options</source>
         <translation>Advanced Options</translation>
-    </message>
-    <message>
-        <source>Auto Split Sentences</source>
-        <translation>Auto Split Sentences</translation>
-    </message>
-    <message>
-        <source>Automatically split text into sentences for better translation</source>
-        <translation>Automatically split text into sentences for better translation</translation>
     </message>
     <message>
         <source>Preserve Formatting</source>
@@ -2642,30 +2570,6 @@ Off: use manual drag-to-select mode.</translation>
         <translation>Translation Engine</translation>
     </message>
     <message>
-        <source>Google API Key</source>
-        <translation>Google API Key</translation>
-    </message>
-    <message>
-        <source>AWS 区域</source>
-        <translation>AWS Region</translation>
-    </message>
-    <message>
-        <source>Access Key ID</source>
-        <translation>Access Key ID</translation>
-    </message>
-    <message>
-        <source>Secret Access Key</source>
-        <translation>Secret Access Key</translation>
-    </message>
-    <message>
-        <source>Session Token</source>
-        <translation>Session Token</translation>
-    </message>
-    <message>
-        <source>可选，临时凭据使用</source>
-        <translation>Optional, for temporary credentials</translation>
-    </message>
-    <message>
         <source>使用 OpenAI API 进行高质量翻译。
 免费账户每月 50 万字符额度，够日常使用。</source>
         <translation>High-quality translation via OpenAI API.
@@ -2875,8 +2779,6 @@ SOFTWARE.</translation></message>
     <!-- Translation page -->
     <message><source>OpenAI API</source><translation>OpenAI API</translation></message>
     <message><source>Translation Options</source><translation>Translation Options</translation></message>
-    <message><source>Ignore Line Breaks</source><translation>Ignore Line Breaks</translation></message>
-    <message><source>Merge multi-line text for better translation</source><translation>Merge multi-line text for better translation</translation></message>
     <!-- Missing from EN only -->
     <message><source>Clipboard Hotkey</source><translation>Clipboard</translation></message>
     <message><source>Show</source><translation>Show</translation></message>

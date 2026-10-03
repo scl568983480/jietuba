@@ -554,9 +554,11 @@ class PinCanvas(QObject):
         toolbar.save_clicked.connect(self.parent_window.save_image)
         toolbar.copy_clicked.connect(self.parent_window.copy_to_clipboard)
 
-        # 翻译按钮
+        # 翻译 / 总结按钮
         if hasattr(toolbar, 'screenshot_translate_clicked'):
             toolbar.screenshot_translate_clicked.connect(self.parent_window._on_translate_clicked)
+        if hasattr(toolbar, 'screenshot_summary_clicked'):
+            toolbar.screenshot_summary_clicked.connect(self.parent_window._on_summary_clicked)
 
         self.undo_stack.print_stack_status()
 

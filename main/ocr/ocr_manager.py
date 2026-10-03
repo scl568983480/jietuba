@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 ocr_manager.py - OCR 功能模块
 
@@ -383,9 +383,9 @@ class OCRManager:
             pixmap: QPixmap 图像对象
             return_format: 返回格式 ("text", "list", "dict")
             need_boxes: 是否必须返回真实文字框坐标（钉图文字选择层需要）。
-                高精度引擎 oneocr 的 Rust 接口不返回坐标（bounding_rect 恒为 None），
-                此时会改用带坐标的引擎（Windows.Media.Ocr / PP-OCR），
-                否则文字框只能退化成左上角占位框，导致"看得到文字却选不中"。
+                oneocr 的 Rust 绑定现在会返回四点坐标；若运行的是旧版 DLL
+                （缺少坐标导出），需要坐标时会改用带坐标的引擎
+                （PP-OCR / Windows.Media.Ocr），避免文字框退化成占位框。
         
         Returns:
             识别结果(格式取决于 return_format)
@@ -422,12 +422,13 @@ class OCRManager:
     def _recognize_with_boxes(self, pixmap: QPixmap, return_format: str) -> Any:
         """需要真实文字框坐标时的识别（钉图文字选择层）。
 
-        默认引擎的高精度引擎 oneocr 不返回坐标（bounding_rect 恒为 None），
-        它给出的占位框会把整层文字挤在左上角 → 用户"看得到文字却选不中"。
-        所以这里改用带坐标的引擎：
+        历史问题：oneocr 的旧绑定不返回坐标，只给一个左上角占位框，
+        导致整层文字挤在一起 → 用户"看得到文字却选不中"。
+        Rust 绑定已补齐坐标（bounding_rect 为四点矩形），因此现在优先：
 
-          1. PP-OCR（ppocr_rust）：有坐标，且实测中英混排/小字最稳
-          2. Windows.Media.Ocr：有坐标，识别质量稍弱（兜底）
+          1. PP-OCR（ppocr_rust）：有坐标，实测中英混排 / 小字最稳
+          2. oneocr（高精度）：有坐标时可用（`_recognize_with_windows_ocr` 内部优先）
+          3. Windows.Media.Ocr：有坐标，识别质量稍弱（兜底）
 
         Returns:
             识别结果；没有可用坐标引擎时返回 None（由调用方回退到默认引擎）。
@@ -521,8 +522,9 @@ class OCRManager:
         QImage.bits() 指针直传 Rust，跳过 PNG 编解码。
         QImage Format_ARGB32 在 little-endian 上的内存布局是 BGRA，
 
-        注意：该接口目前不返回文字框坐标（bounding_rect 恒为 None、words 为空）。
-        调用方需要坐标时（need_boxes=True）直接返回失败，由上层回退到有坐标的引擎。
+        行框与词级置信度由 GetOcrLineBoundingBox / GetOcrWordBoundingBox /
+        GetOcrWordConfidence 提供（返回指向 32 字节四点结构的指针）。
+        旧版 oneocr.dll 若缺少这些导出，则坐标为空，由上层回退到带坐标的引擎。
         """
         try:
             start_time = time.time()
@@ -574,12 +576,15 @@ class OCRManager:
                             [bbox['x4'], bbox['y4']]
                         ]
                     elif need_boxes:
-                        # 该引擎不提供坐标：让上层回退到带坐标的引擎，
+                        # 旧版 DLL 没有坐标接口：让上层回退到带坐标的引擎，
                         # 而不是用占位框（占位框会让文字选择层整片点不中）
                         _ocr_log("oneocr 未返回文字框坐标，回退到带坐标的引擎", "INFO")
                         return self._format_error(return_format, "oneocr 未返回文字框坐标")
                     else:
-                        box = [[0, 0], [100, 0], [100, 20], [0, 20]]
+                        # 不编造坐标：oneocr 不返回 bounding_rect，若给每行塞同一个
+                        # 占位框，按 Y 坐标分行时所有行都会被并成一行（格式全丢）。
+                        # 这里留空，由 format_ocr_result_text 按引擎给出的行序输出。
+                        box = None
                     
                     # 计算平均置信度(从词级别)
                     confidences = [word['confidence'] for word in line.get('words', []) 
@@ -611,8 +616,8 @@ class OCRManager:
             if not self._initialize_windows_ocr("中文"):
                 return self._format_error(return_format)
 
-        # oneocr 高精度引擎优先；识别不到时自动回退 Windows.Media.Ocr。
-        # need_boxes=True 时 oneocr 会因缺少坐标而失败，从而自动走到下面带坐标的路径。
+        # oneocr 高精度引擎优先（现在也返回四点坐标）；识别不到时回退 Windows.Media.Ocr。
+        # 仅当运行的是旧版 DLL（无坐标导出）且调用方需要坐标时，才会走到下面的兜底路径。
         if WINDOS_OCR_AVAILABLE:
             oneocr_result = self._recognize_with_windos_ocr(pixmap, "dict", need_boxes)
             if isinstance(oneocr_result, dict):
@@ -899,14 +904,63 @@ def get_ocr_memory_status() -> str:
     return _ocr_manager.get_memory_status()
 
 
+def _is_cjk_char(ch: str) -> bool:
+    """中日韩文字 / 全角标点（决定同一行内拼接时要不要补空格）。"""
+    if not ch:
+        return False
+    code = ord(ch)
+    return (
+        0x3000 <= code <= 0x303F
+        or 0x3040 <= code <= 0x30FF
+        or 0x3400 <= code <= 0x4DBF
+        or 0x4E00 <= code <= 0x9FFF
+        or 0xAC00 <= code <= 0xD7A3
+        or 0xF900 <= code <= 0xFAFF
+        or 0xFE30 <= code <= 0xFE4F
+        or 0xFF00 <= code <= 0xFF60
+        or 0x2018 <= code <= 0x201D
+    )
+
+
+def _box_metrics(box) -> Optional[tuple]:
+    """文字框的 (中心 Y, 高度, 左边 X)；坐标不可用时返回 None。"""
+    if not box:
+        return None
+    try:
+        points = [pt for pt in box if len(pt) >= 2]
+        if not points:
+            return None
+        ys = [float(pt[1]) for pt in points]
+        xs = [float(pt[0]) for pt in points]
+    except (TypeError, ValueError):
+        return None
+    return ((min(ys) + max(ys)) / 2, max(ys) - min(ys), min(xs))
+
+
+def _join_line_texts(texts: list) -> str:
+    """同一行内多个文字块拼接：中日韩之间不补空格，其余补一个空格。"""
+    merged = ""
+    for text in texts:
+        if not merged:
+            merged = text
+            continue
+        if _is_cjk_char(merged[-1]) or _is_cjk_char(text[:1]):
+            merged += text
+        else:
+            merged += " " + text
+    return merged
+
+
 def format_ocr_result_text(result: dict, separator: str = "\n") -> str:
     """
     格式化 OCR 结果为阅读顺序文本
     
     智能处理：
-    - 按 Y 坐标分行（从上到下）
-    - 同一行内按 X 坐标排序（从左到右）
-    - 同行文字用空格连接，不同行用 separator 分隔
+    - 有文字框坐标时：按 Y 坐标分行（从上到下），同一行内按 X 坐标排序（从左到右），
+      行间距明显大于常规行距时插入空行（保留原文段落）；
+    - **没有文字框坐标时**（如 oneocr 只返回逐行文本）：直接按引擎给出的行序
+      每行一条输出，绝不把多行并成一行；
+    - 同一行内多个文字块用空格连接（中日韩之间不补空格，避免中文被拆出空格）。
     
     Args:
         result: OCR 识别结果（dict 格式，包含 code 和 data 字段）
@@ -931,52 +985,53 @@ def format_ocr_result_text(result: dict, separator: str = "\n") -> str:
     
     if len(data) == 1:
         return data[0].get('text', '')
-    
+
+    texts = [item.get('text', '') for item in data if item.get('text')]
+    if not texts:
+        return ""
+
+    metrics = [
+        _box_metrics(item.get('box'))
+        for item in data
+        if item.get('text')
+    ]
+    # 坐标缺失，或所有文字块给的是同一个（占位）框 → 坐标没有信息量，
+    # 按引擎自己的行序输出，保证换行/段落不被压成一行。
+    usable = {m for m in metrics if m is not None}
+    if len(usable) <= 1:
+        return separator.join(texts)
+
     # 收集每个文字块的位置信息
     items_with_pos = []
-    for item in data:
-        box = item.get('box', [])
-        text = item.get('text', '')
-        if not box or not text:
+    for item, metric in zip(
+        [d for d in data if d.get('text')], metrics
+    ):
+        if metric is None:
             continue
-        
-        # box 格式: [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
-        # 计算中心Y和高度
-        y_coords = [pt[1] for pt in box if len(pt) >= 2]
-        if not y_coords:
-            continue
-        
-        min_y = min(y_coords)
-        max_y = max(y_coords)
-        center_y = (min_y + max_y) / 2
-        height = max_y - min_y
-        
-        # 计算左边X（用于同行内排序）
-        x_coords = [pt[0] for pt in box if len(pt) >= 2]
-        left_x = min(x_coords) if x_coords else 0
-        
+        center_y, height, left_x = metric
         items_with_pos.append({
-            'text': text,
+            'text': item.get('text', ''),
             'center_y': center_y,
             'height': height,
-            'left_x': left_x
+            'left_x': left_x,
         })
-    
+
     if not items_with_pos:
-        return ""
-    
-    # 计算行高容差
-    avg_height = sum(b['height'] for b in items_with_pos) / len(items_with_pos)
-    line_tolerance = avg_height * 0.8
-    
+        return separator.join(texts)
+
+    # 行高容差：用中位数而不是平均值，避免大标题把容差拉大后并掉相邻行
+    heights = sorted(b['height'] for b in items_with_pos)
+    median_height = heights[len(heights) // 2]
+    line_tolerance = median_height * 0.8
+
     # 按Y坐标分行
     lines = []
     current_line = []
     current_line_y = None
-    
+
     # 先按Y排序（从上到下）
     items_with_pos.sort(key=lambda x: x['center_y'])
-    
+
     for block in items_with_pos:
         if current_line_y is None:
             current_line = [block]
@@ -987,14 +1042,30 @@ def format_ocr_result_text(result: dict, separator: str = "\n") -> str:
         else:
             # 新的一行：先将当前行按X排序后输出
             current_line.sort(key=lambda x: x['left_x'])
-            lines.append(" ".join(b['text'] for b in current_line))
+            lines.append((current_line_y, current_line))
             current_line = [block]
             current_line_y = block['center_y']
-    
+
     # 别忘了最后一行
     if current_line:
         current_line.sort(key=lambda x: x['left_x'])
-        lines.append(" ".join(b['text'] for b in current_line))
-    
-    return separator.join(lines)
+        lines.append((current_line_y, current_line))
+
+    # 常规行距（相邻行中心距的下中位数）：明显更大的间距视为段落分隔。
+    # 用下中位数而不是中位数：文档里通常只有少数几处段落间距，
+    # 取较大的那个会把"段落间距"当成常规行距，于是永远检测不出段落。
+    pitches = sorted(
+        lines[i + 1][0] - lines[i][0] for i in range(len(lines) - 1)
+    )
+    median_pitch = pitches[(len(pitches) - 1) // 2] if pitches else 0.0
+    paragraph_gap = median_pitch * 1.5 if median_pitch > 0 else 0.0
+
+    rendered = [_join_line_texts([b['text'] for b in lines[0][1]])]
+    for index in range(1, len(lines)):
+        gap = lines[index][0] - lines[index - 1][0]
+        if paragraph_gap and gap >= paragraph_gap:
+            rendered.append("")          # 段落之间的空行
+        rendered.append(_join_line_texts([b['text'] for b in lines[index][1]]))
+
+    return separator.join(rendered)
  

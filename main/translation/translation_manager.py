@@ -91,8 +91,7 @@ class TranslationManager(QObject):
         self._api_key = ""
         self._use_pro = False
         self._legacy_provider_override = False
-        self._split_sentences = "nonewlines"  # 分句模式: "0"=不分句, "1"=自动分句, "nonewlines"=忽略换行
-        self._preserve_formatting = True  # 保留格式
+        self._preserve_formatting = True  # 保留格式（在提示词里要求保持原文段落与换行结构）
         if translation_service is None:
             from .service import create_default_translation_service
 
@@ -317,23 +316,21 @@ class TranslationManager(QObject):
         """检查单例是否已创建"""
         return cls._instance is not None
     
-    def configure(self, api_key: str, use_pro: bool = False, 
-                  split_sentences: str = "nonewlines", preserve_formatting: bool = True):
+    def configure(self, api_key: str, use_pro: bool = False,
+                  preserve_formatting: bool = True):
         """
         配置翻译服务
         
         Args:
             api_key: API 密钥（兼容旧调用，现已忽略）
             use_pro: 是否使用 Pro 版 API（兼容旧调用，现已忽略）
-            split_sentences: 分句模式 ("0"=不分句, "1"=自动分句, "nonewlines"=忽略换行)
-            preserve_formatting: 保留格式
+            preserve_formatting: 保留格式（在提示词里要求保持原文段落与换行结构）
         """
         self._api_key = api_key
         self._use_pro = use_pro
         self._legacy_provider_override = True
-        self._split_sentences = split_sentences
         self._preserve_formatting = preserve_formatting
-        log_debug(f"翻译服务已配置 (Pro: {use_pro}, split_sentences: {split_sentences}, preserve_formatting: {preserve_formatting})", "Translation")
+        log_debug(f"翻译服务已配置 (Pro: {use_pro}, preserve_formatting: {preserve_formatting})", "Translation")
     
     def translate(
         self,
@@ -343,7 +340,6 @@ class TranslationManager(QObject):
         source_lang: str = None,
         position: QPoint = None,
         use_pro: bool = None,
-        split_sentences: str = None,
         preserve_formatting: bool = None
     ):
         """
@@ -359,22 +355,18 @@ class TranslationManager(QObject):
             source_lang: 源语言代码（可选，不传则自动检测）
             position: 窗口位置（可选）
             use_pro: 是否使用 Pro 版 API（可选）
-            split_sentences: 分句模式 ("0"/"1"/"nonewlines")（可选）
             preserve_formatting: 保留格式（可选）
         """
         # 使用传入的参数或已配置的参数
         api_key = self._resolve_api_key(api_key)
         if use_pro is None:
             use_pro = self._use_pro
-        if split_sentences is None:
-            split_sentences = self._split_sentences
         if preserve_formatting is None:
             preserve_formatting = self._preserve_formatting
         
         # 保存配置供后续翻译使用
         if use_pro is not None:
             self._use_pro = use_pro
-        self._split_sentences = split_sentences
         self._preserve_formatting = preserve_formatting
 
         # 方向：用户在弹窗里手动选过语言 → 用用户选的；否则按源文语种判断。
@@ -428,7 +420,6 @@ class TranslationManager(QObject):
         source_lang: str = None,
         position: QPoint = None,
         use_pro: bool = None,
-        split_sentences: str = None,
         preserve_formatting: bool = None,
     ):
         """Translate selected text in the compact result popup."""
@@ -441,20 +432,16 @@ class TranslationManager(QObject):
                 source_lang=source_lang,
                 position=position,
                 use_pro=use_pro,
-                split_sentences=split_sentences,
                 preserve_formatting=preserve_formatting,
             )
 
         api_key = self._resolve_api_key(api_key)
         if use_pro is None:
             use_pro = self._use_pro
-        if split_sentences is None:
-            split_sentences = self._split_sentences
         if preserve_formatting is None:
             preserve_formatting = self._preserve_formatting
 
         self._use_pro = bool(use_pro)
-        self._split_sentences = split_sentences
         self._preserve_formatting = preserve_formatting
 
         self._stop_current_thread(RESULT_COMPACT)
@@ -503,20 +490,16 @@ class TranslationManager(QObject):
         source_lang: str = None,
         position: QPoint = None,
         use_pro: bool = None,
-        split_sentences: str = None,
         preserve_formatting: bool = None,
     ):
         """Show the compact popup empty, with the caret in the input box."""
         api_key = self._resolve_api_key(api_key)
         if use_pro is None:
             use_pro = self._use_pro
-        if split_sentences is None:
-            split_sentences = self._split_sentences
         if preserve_formatting is None:
             preserve_formatting = self._preserve_formatting
 
         self._use_pro = bool(use_pro)
-        self._split_sentences = split_sentences
         self._preserve_formatting = preserve_formatting
         # 新一次弹窗：开新会话，清掉上次会话的手动选择，回到配置语言。
         self._popup_session_active = True
@@ -770,7 +753,6 @@ class TranslationManager(QObject):
             source_lang=source_lang,
             preserve_formatting=self._preserve_formatting,
             timeout=60,
-            options={"split_sentences": self._split_sentences},
         )
         thread = TranslationWorker(
             self._translation_service,
@@ -1062,7 +1044,6 @@ class TranslationManager(QObject):
         api_key: str = None,
         target_lang: str = "ZH",
         use_pro: bool = None,
-        split_sentences: str = None,
         preserve_formatting: bool = None
     ):
         """
@@ -1079,7 +1060,6 @@ class TranslationManager(QObject):
             api_key: API 密钥（兼容旧调用，现已忽略）
             target_lang: 目标语言代码
             use_pro: 是否使用 Pro 版 API（兼容旧调用，现已忽略）
-            split_sentences: 分句模式
             preserve_formatting: 保留格式
         """
         from PySide6.QtGui import QPixmap
@@ -1088,15 +1068,12 @@ class TranslationManager(QObject):
         api_key = self._resolve_api_key(api_key)
         if use_pro is None:
             use_pro = self._use_pro
-        if split_sentences is None:
-            split_sentences = self._split_sentences
         if preserve_formatting is None:
             preserve_formatting = self._preserve_formatting
         
         # 保存配置
         if use_pro is not None:
             self._use_pro = use_pro
-        self._split_sentences = split_sentences
         self._preserve_formatting = preserve_formatting
 
         # 只作废翻译通道上一次未完成的请求（总结窗口在途的总结不受影响）

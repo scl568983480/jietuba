@@ -3,7 +3,7 @@
 """
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QPushButton
 
 from ui.toolbar import Toolbar
 from core import log_debug, safe_event
@@ -17,6 +17,40 @@ class PinToolbar(Toolbar):
     3. 作为独立顶层窗口吸附在钉图附近
     4. 支持自动隐藏与手动拖拽
     """
+
+    # 钉图场景用不到的按钮（截图专用）
+    _PIN_HIDDEN_ATTRS = (
+        "confirm_btn",
+        "long_screenshot_btn",
+        "pin_btn",
+        "cancel_btn",
+        "gif_btn",
+        # 钉图自带文字识别层，不需要截图式 OCR 复制
+        "ocr_copy_btn",
+    )
+
+    # 宽按钮顺序：翻译 / 总结 / 保存 / 复制
+    # （总结紧挨翻译，与截图工具栏的排布一致）
+    _PIN_WIDE_ATTRS = (
+        "screenshot_translate_btn",
+        "screenshot_summary_btn",
+        "save_btn",
+        "copy_btn",
+    )
+
+    # 窄按钮：绘图工具 + 撤销/重做
+    _PIN_TOOL_ATTRS = (
+        "pen_btn",
+        "highlighter_btn",
+        "arrow_btn",
+        "number_btn",
+        "rect_btn",
+        "ellipse_btn",
+        "text_btn",
+        "eraser_btn",
+        "undo_btn",
+        "redo_btn",
+    )
 
     def __init__(self, parent_pin_window=None, config_manager=None):
         super().__init__(parent=None, use_drawing_flyout=False)
@@ -35,60 +69,53 @@ class PinToolbar(Toolbar):
         self._parent_hovering = False
 
     def _customize_for_pin(self):
-        """按钉图模式重排并隐藏不需要的按钮。"""
+        """按钉图模式隐藏并重排按钮（所有可见按钮一律平铺，不允许重叠）。
+
+        截图工具栏的每个按钮都带了自己的初始几何；钉图这里必须把「所有还可见的
+        按钮」都排一遍。此前只排了一部分按钮，漏掉的（例如截图总结按钮）保留着
+        截图工具栏的坐标，直接压在画笔按钮上。
+        """
         s = self.SCALE
         btn_width = round(45 * s)
         btn_height = round(45 * s)
         wide_w = round(50 * s)
         handle_w = round(btn_height * 0.32) if hasattr(self, "drag_handle") else 0
         left_x = handle_w
+        placed = set()
 
-        if hasattr(self, "confirm_btn"):
-            self.confirm_btn.hide()
-        if hasattr(self, "long_screenshot_btn"):
-            self.long_screenshot_btn.hide()
-        if hasattr(self, "pin_btn"):
-            self.pin_btn.hide()
-        if hasattr(self, "cancel_btn"):
-            self.cancel_btn.hide()
-        if hasattr(self, "gif_btn"):
-            self.gif_btn.hide()
-
-        # 钉图场景无需截图式 OCR 复制（钉图自带文字识别层），隐藏该按钮
-        if hasattr(self, "ocr_copy_btn"):
-            self.ocr_copy_btn.hide()
-
-        if hasattr(self, "screenshot_translate_btn"):
-            self.screenshot_translate_btn.setGeometry(left_x, 0, wide_w, btn_height)
-            self.screenshot_translate_btn.show()
-            left_x += wide_w
-
-        if hasattr(self, "save_btn"):
-            self.save_btn.setGeometry(left_x, 0, wide_w, btn_height)
-            self.save_btn.show()
-            left_x += wide_w
-
-        if hasattr(self, "copy_btn"):
-            self.copy_btn.setGeometry(left_x, 0, wide_w, btn_height)
-            self.copy_btn.show()
-            left_x += wide_w
-
-        for attr in (
-            "pen_btn",
-            "highlighter_btn",
-            "arrow_btn",
-            "number_btn",
-            "rect_btn",
-            "ellipse_btn",
-            "text_btn",
-            "eraser_btn",
-            "undo_btn",
-            "redo_btn",
-        ):
+        for attr in self._PIN_HIDDEN_ATTRS:
             button = getattr(self, attr, None)
-            if button:
-                button.setGeometry(left_x, 0, btn_width, btn_height)
-                left_x += btn_width
+            if button is not None:
+                button.hide()
+
+        for attr in self._PIN_WIDE_ATTRS:
+            button = getattr(self, attr, None)
+            if button is None:
+                continue
+            button.setGeometry(left_x, 0, wide_w, btn_height)
+            button.show()
+            placed.add(attr)
+            left_x += wide_w
+
+        for attr in self._PIN_TOOL_ATTRS:
+            button = getattr(self, attr, None)
+            if button is None:
+                continue
+            button.setGeometry(left_x, 0, btn_width, btn_height)
+            placed.add(attr)
+            left_x += btn_width
+
+        # 兜底：仍然可见但没排到的按钮（例如后续新增的按钮）平铺到末尾，
+        # 保证不会再出现按钮互相重叠
+        for attr, obj in vars(self).items():
+            if attr in placed or not isinstance(obj, QPushButton):
+                continue
+            if obj.isHidden():
+                continue
+            log_debug(f"钉图工具栏：补排按钮 {attr}", "PinToolbar")
+            obj.setGeometry(left_x, 0, btn_width, btn_height)
+            placed.add(attr)
+            left_x += btn_width
 
         self.resize(left_x, btn_height)
 

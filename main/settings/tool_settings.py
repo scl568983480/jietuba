@@ -214,21 +214,12 @@ class ToolSettingsManager(QObject):
         # 遮罩色 Alpha 固定为 120，不提供前端设置
 
         # ==================== 5. 翻译 ====================
-        "translation_provider": "openapi",     # 当前翻译引擎（默认 OpenAI API）
+        "translation_provider": "openapi",     # 当前翻译引擎（仅 OpenAI 兼容 API）
         "openapi_url": "",                      # OpenAI 兼容 API 地址
         "openapi_api_key": "",                  # OpenAI 兼容 API Key
         "openapi_model": "",                    # 模型名称（如 gpt-4o）
-        "amazon_translate_region": "us-west-2",
-        "amazon_translate_access_key_id": "",
-        "amazon_translate_secret_access_key": "",
-        "amazon_translate_session_token": "",
-        "google_translate_api_key": "",
-        "azure_translate_api_key": "",
-        "azure_translate_region": "",
-        "azure_translate_endpoint": "",
         "translation_target_lang": "",         # 翻译目标语言（空为跟随系统语言）
         "summary_target_lang": "",             # 总结目标语言（空为跟随翻译目标语言）
-        "translation_split_sentences": True,   # 自动分句
         "translation_preserve_formatting": True,  # 保留格式
 
         # ==================== 6. 日志 ====================
@@ -848,19 +839,35 @@ class ToolSettingsManager(QObject):
     
     # ==================== 翻译设置 ====================
 
+    # 已下线的翻译引擎：历史配置里可能仍指向它们，读取时统一回落到 OpenAI 兼容 API
+    _RETIRED_TRANSLATION_PROVIDERS = ("google", "amazon", "azure")
+
     def get_translation_provider(self) -> str:
-        """获取当前翻译引擎 ID。"""
-        return self.qsettings.value(
-            "translation/active_provider",
-            self.APP_DEFAULT_SETTINGS["translation_provider"],
-            type=str,
-        )
+        """获取当前翻译引擎 ID。
+
+        目前只有 OpenAI 兼容 API（``openapi``）。已下线的
+        Google / Amazon / Azure 会回落到 ``openapi``，避免旧配置导致翻译不可用。
+        """
+        provider_id = (
+            self.qsettings.value(
+                "translation/active_provider",
+                self.APP_DEFAULT_SETTINGS["translation_provider"],
+                type=str,
+            )
+            or ""
+        ).strip().lower()
+        if provider_id in self._RETIRED_TRANSLATION_PROVIDERS:
+            return self.APP_DEFAULT_SETTINGS["translation_provider"]
+        return provider_id or self.APP_DEFAULT_SETTINGS["translation_provider"]
 
     def set_translation_provider(self, provider_id: str):
-        """设置当前翻译引擎 ID。"""
+        """设置当前翻译引擎 ID（已下线的引擎会被忽略，写回默认引擎）。"""
+        provider_id = (provider_id or "").strip().lower()
+        if provider_id in self._RETIRED_TRANSLATION_PROVIDERS:
+            provider_id = self.APP_DEFAULT_SETTINGS["translation_provider"]
         self.qsettings.setValue(
             "translation/active_provider",
-            (provider_id or "google").strip().lower(),
+            provider_id or self.APP_DEFAULT_SETTINGS["translation_provider"],
         )
 
     def get_translation_provider_config(self, provider_id: str) -> dict:
@@ -871,23 +878,6 @@ class ToolSettingsManager(QObject):
                 "api_url": self.get_openapi_url(),
                 "api_key": self.get_openapi_api_key(),
                 "model": self.get_openapi_model(),
-            }
-        if provider_id == "amazon":
-            return {
-                "region": self.get_amazon_translate_region(),
-                "access_key_id": self.get_amazon_translate_access_key_id(),
-                "secret_access_key": (
-                    self.get_amazon_translate_secret_access_key()
-                ),
-                "session_token": self.get_amazon_translate_session_token(),
-            }
-        if provider_id == "google":
-            return {"api_key": self.get_google_translate_api_key()}
-        if provider_id == "azure":
-            return {
-                "api_key": self.get_azure_translate_api_key(),
-                "region": self.get_azure_translate_region(),
-                "endpoint": self.get_azure_translate_endpoint(),
             }
         return {}
     
@@ -915,112 +905,6 @@ class ToolSettingsManager(QObject):
         """设置 OpenAI 兼容模型名称"""
         self.qsettings.setValue("app/openapi_model", (value or "").strip())
 
-    def get_amazon_translate_region(self) -> str:
-        return self.qsettings.value(
-            "translation/providers/amazon/region",
-            self.APP_DEFAULT_SETTINGS["amazon_translate_region"],
-            type=str,
-        )
-
-    def set_amazon_translate_region(self, value: str):
-        self.qsettings.setValue(
-            "translation/providers/amazon/region",
-            (value or "us-west-2").strip(),
-        )
-
-    def get_amazon_translate_access_key_id(self) -> str:
-        return self.qsettings.value(
-            "translation/providers/amazon/access_key_id",
-            self.APP_DEFAULT_SETTINGS["amazon_translate_access_key_id"],
-            type=str,
-        )
-
-    def set_amazon_translate_access_key_id(self, value: str):
-        self.qsettings.setValue(
-            "translation/providers/amazon/access_key_id",
-            (value or "").strip(),
-        )
-
-    def get_amazon_translate_secret_access_key(self) -> str:
-        return self.qsettings.value(
-            "translation/providers/amazon/secret_access_key",
-            self.APP_DEFAULT_SETTINGS[
-                "amazon_translate_secret_access_key"
-            ],
-            type=str,
-        )
-
-    def set_amazon_translate_secret_access_key(self, value: str):
-        self.qsettings.setValue(
-            "translation/providers/amazon/secret_access_key",
-            (value or "").strip(),
-        )
-
-    def get_amazon_translate_session_token(self) -> str:
-        return self.qsettings.value(
-            "translation/providers/amazon/session_token",
-            self.APP_DEFAULT_SETTINGS["amazon_translate_session_token"],
-            type=str,
-        )
-
-    def set_amazon_translate_session_token(self, value: str):
-        self.qsettings.setValue(
-            "translation/providers/amazon/session_token",
-            (value or "").strip(),
-        )
-
-    def get_google_translate_api_key(self) -> str:
-        return self.qsettings.value(
-            "translation/providers/google/api_key",
-            self.APP_DEFAULT_SETTINGS["google_translate_api_key"],
-            type=str,
-        )
-
-    def set_google_translate_api_key(self, value: str):
-        self.qsettings.setValue(
-            "translation/providers/google/api_key",
-            (value or "").strip(),
-        )
-
-    def get_azure_translate_api_key(self) -> str:
-        return self.qsettings.value(
-            "translation/providers/azure/api_key",
-            self.APP_DEFAULT_SETTINGS["azure_translate_api_key"],
-            type=str,
-        )
-
-    def set_azure_translate_api_key(self, value: str):
-        self.qsettings.setValue(
-            "translation/providers/azure/api_key",
-            (value or "").strip(),
-        )
-
-    def get_azure_translate_region(self) -> str:
-        return self.qsettings.value(
-            "translation/providers/azure/region",
-            self.APP_DEFAULT_SETTINGS["azure_translate_region"],
-            type=str,
-        )
-
-    def set_azure_translate_region(self, value: str):
-        self.qsettings.setValue(
-            "translation/providers/azure/region",
-            (value or "").strip(),
-        )
-
-    def get_azure_translate_endpoint(self) -> str:
-        return self.qsettings.value(
-            "translation/providers/azure/endpoint",
-            self.APP_DEFAULT_SETTINGS["azure_translate_endpoint"],
-            type=str,
-        )
-
-    def set_azure_translate_endpoint(self, value: str):
-        self.qsettings.setValue(
-            "translation/providers/azure/endpoint",
-            (value or "").strip(),
-        )
-    
     def get_translation_target_lang(self) -> str:
         """
         获取翻译目标语言
@@ -1065,14 +949,6 @@ class ToolSettingsManager(QObject):
         """设置总结目标语言（与翻译目标语言相互独立记忆）"""
         self.set_app_setting("summary_target_lang", value)
     
-    def get_translation_split_sentences(self) -> bool:
-        """获取是否启用自动分句"""
-        return self.qsettings.value("app/translation_split_sentences", self.APP_DEFAULT_SETTINGS["translation_split_sentences"], type=bool)
-    
-    def set_translation_split_sentences(self, value: bool):
-        """设置是否启用自动分句"""
-        self.qsettings.setValue("app/translation_split_sentences", value)
-    
     def get_translation_preserve_formatting(self) -> bool:
         """获取是否保留格式"""
         return self.qsettings.value("app/translation_preserve_formatting", self.APP_DEFAULT_SETTINGS["translation_preserve_formatting"], type=bool)
@@ -1088,7 +964,6 @@ class ToolSettingsManager(QObject):
         Returns:
             dict: 包含以下键值:
                 - target_lang (str): 目标语言代码，如 "zh-Hans", "en", "ja"
-                - split_sentences (str): "nonewlines" 或 "0"
                 - preserve_formatting (bool)
         """
         # 优先读取用户手动保存的目标语言
@@ -1098,16 +973,9 @@ class ToolSettingsManager(QObject):
         else:
             target_lang = self.get_translation_target_lang()
 
-        split_sentences_enabled = self.get_translation_split_sentences()
-        preserve_formatting = self.get_translation_preserve_formatting()
-
-        # 开启时用 nonewlines（忽略换行），关闭时用 0（不分句）
-        split_sentences = "nonewlines" if split_sentences_enabled else "0"
-
         return {
             "target_lang": target_lang,
-            "split_sentences": split_sentences,
-            "preserve_formatting": preserve_formatting,
+            "preserve_formatting": self.get_translation_preserve_formatting(),
         }
 
     def get_translation_request_params(self) -> dict:
@@ -1115,11 +983,6 @@ class ToolSettingsManager(QObject):
         saved_target_lang = self.get_app_setting("translation_target_lang", "")
         return {
             "target_lang": saved_target_lang or self.get_translation_target_lang(),
-            "split_sentences": (
-                "nonewlines"
-                if self.get_translation_split_sentences()
-                else "0"
-            ),
             "preserve_formatting": self.get_translation_preserve_formatting(),
         }
     

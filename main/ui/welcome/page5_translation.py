@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 翻译设置页
 
@@ -228,14 +228,10 @@ class TranslationPage(BasePage):
         self._provider_combo.setCursor(Qt.CursorShape.PointingHandCursor)
         from translation.service import create_default_translation_service
 
-        provider_order = {"google": 0, "openapi": 1, "amazon": 2}
         providers = create_default_translation_service(
             self._config
         ).registry.available_providers()
-        for metadata in sorted(
-            providers,
-            key=lambda item: provider_order.get(item.provider_id, 99),
-        ):
+        for metadata in providers:
             self._provider_combo.addItem(
                 metadata.display_name, metadata.provider_id
             )
@@ -258,9 +254,7 @@ class TranslationPage(BasePage):
         self._credential_stack = QStackedWidget()
         self._credential_stack.setStyleSheet("background: transparent;")
         self._provider_pages = {}
-        self._build_google_credentials()
         self._build_openapi_credentials()
-        self._build_amazon_credentials()
         card_layout.addWidget(self._credential_stack)
         self._provider_combo.currentIndexChanged.connect(
             self._on_provider_changed
@@ -337,8 +331,6 @@ class TranslationPage(BasePage):
             self._row_hotkey_lbl.setText(_tr("快捷键（最多设置两个）"))
         for label, text in getattr(self, "_credential_labels", []):
             label.setText(_tr(text))
-        if hasattr(self, "_google_key_edit"):
-            self._google_key_edit.setPlaceholderText(_tr("Google API Key"))
         if hasattr(self, "_openapi_url_edit"):
             self._openapi_url_edit.setPlaceholderText(
                 _tr("https://api.openai.com/v1/chat/completions")
@@ -347,14 +339,6 @@ class TranslationPage(BasePage):
             self._openapi_key_edit.setPlaceholderText(_tr("OpenAI API Key"))
         if hasattr(self, "_openapi_model_edit"):
             self._openapi_model_edit.setPlaceholderText(_tr("gpt-4o"))
-        if hasattr(self, "_amazon_secret_edit"):
-            self._amazon_secret_edit.setPlaceholderText(
-                _tr("Secret Access Key")
-            )
-        if hasattr(self, "_amazon_token_edit"):
-            self._amazon_token_edit.setPlaceholderText(
-                _tr("可选，临时凭据使用")
-            )
         # 级联刷新插画区（翻译动画文字随界面语言切换）
         if hasattr(self, "illus_area") and hasattr(self.illus_area, "retranslate"):
             self.illus_area.retranslate()
@@ -381,23 +365,6 @@ class TranslationPage(BasePage):
         idx = self._lang_combo.findData(saved)
         if idx >= 0:
             self._lang_combo.setCurrentIndex(idx)
-
-    def _build_google_credentials(self):
-        page, form = self._credential_page()
-        self._google_key_edit = self._credential_edit(
-            self._config.get_google_translate_api_key()
-            if hasattr(self._config, "get_google_translate_api_key")
-            else "",
-            "Google API Key",
-            password=True,
-        )
-        self._add_credential_row(form, "Google API Key", self._google_key_edit)
-        hint = self._credential_hint(
-            f'<a href="https://console.cloud.google.com/apis/credentials" '
-            f'style="color:{ACCENT};">Google Cloud Console</a>'
-        )
-        form.addRow("", hint)
-        self._add_provider_page("google", page)
 
     def _build_openapi_credentials(self):
         page, form = self._credential_page()
@@ -429,48 +396,6 @@ class TranslationPage(BasePage):
         )
         form.addRow("", hint)
         self._add_provider_page("openapi", page)
-
-    def _build_amazon_credentials(self):
-        page, form = self._credential_page()
-        self._amazon_region_edit = self._credential_edit(
-            self._config.get_amazon_translate_region()
-            if hasattr(self._config, "get_amazon_translate_region")
-            else "us-west-2",
-            "us-west-2",
-        )
-        self._amazon_access_edit = self._credential_edit(
-            self._config.get_amazon_translate_access_key_id()
-            if hasattr(self._config, "get_amazon_translate_access_key_id")
-            else "",
-            "AKIA...",
-        )
-        self._amazon_secret_edit = self._credential_edit(
-            self._config.get_amazon_translate_secret_access_key()
-            if hasattr(
-                self._config, "get_amazon_translate_secret_access_key"
-            )
-            else "",
-            "Secret Access Key",
-            password=True,
-        )
-        self._amazon_token_edit = self._credential_edit(
-            self._config.get_amazon_translate_session_token()
-            if hasattr(self._config, "get_amazon_translate_session_token")
-            else "",
-            "可选，临时凭据使用",
-            password=True,
-        )
-        self._add_credential_row(form, "AWS 区域", self._amazon_region_edit)
-        self._add_credential_row(
-            form, "Access Key ID", self._amazon_access_edit
-        )
-        self._add_credential_row(
-            form, "Secret Access Key", self._amazon_secret_edit
-        )
-        self._add_credential_row(
-            form, "Session Token", self._amazon_token_edit
-        )
-        self._add_provider_page("amazon", page)
 
     def _credential_page(self):
         page = QWidget()
@@ -552,13 +477,9 @@ class TranslationPage(BasePage):
             )
 
     def save(self):
-        provider_id = self._provider_combo.currentData() or "google"
+        provider_id = self._provider_combo.currentData() or "openapi"
         if hasattr(self._config, "set_translation_provider"):
             self._config.set_translation_provider(provider_id)
-        if hasattr(self._config, "set_google_translate_api_key"):
-            self._config.set_google_translate_api_key(
-                self._google_key_edit.text().strip()
-            )
         if hasattr(self._config, "set_openapi_url"):
             self._config.set_openapi_url(
                 self._openapi_url_edit.text().strip()
@@ -568,19 +489,6 @@ class TranslationPage(BasePage):
             )
             self._config.set_openapi_model(
                 self._openapi_model_edit.text().strip()
-            )
-        if hasattr(self._config, "set_amazon_translate_region"):
-            self._config.set_amazon_translate_region(
-                self._amazon_region_edit.text().strip()
-            )
-            self._config.set_amazon_translate_access_key_id(
-                self._amazon_access_edit.text().strip()
-            )
-            self._config.set_amazon_translate_secret_access_key(
-                self._amazon_secret_edit.text().strip()
-            )
-            self._config.set_amazon_translate_session_token(
-                self._amazon_token_edit.text().strip()
             )
         lang = self._lang_combo.currentData()
         if lang:
