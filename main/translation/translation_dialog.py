@@ -249,7 +249,9 @@ class DashboardTitleBar(TitleBar):
         self.backend_badge.setObjectName("backendBadge")
         self.backend_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.backend_badge.setFixedHeight(22)
-        self.backend_badge.setVisible(False)  # 不展示引擎/模型名，避免占用标题栏
+        # 显示联网翻译所用的引擎/模型名：让用户一眼看出结果来自大模型联网翻译
+        self.backend_badge.setToolTip(_tr("Online translation engine"))
+        self.backend_badge.setVisible(True)
         self.hBoxLayout.insertWidget(self.hBoxLayout.count() - 3, self.backend_badge)
 
         self.pin_button = QPushButton(_tr("Pin"), self)
@@ -836,6 +838,7 @@ class TranslationDialog(FramelessWindow):
         badge = self.dashboard_title_bar.backend_badge
         badge.setText(text)
         badge.setProperty("configured", configured)
+        badge.setVisible(True)  # 引擎名常驻可见，用户能看出这是联网翻译
         badge.style().unpolish(badge)
         badge.style().polish(badge)
 

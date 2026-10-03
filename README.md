@@ -7,7 +7,9 @@
 
 支持区域截图、窗口智能识别、GIF录制、长截图拼接、OCR文字识别、图像钉图、翻译等功能，并内置了完整的剪切板历史管理系统，不限图片来源可以联动截图模块生成钉图或者提取文字。
 
-编译后单文件大小大约42MB.占用内存很低，低配电脑也可以流畅
+内置**中英双向离线词典**：划词取到单个词时本地秒出结果——英文词给出音标、释义、考纲标签、柯林斯星级、词频与词形变化；中文词给出英文对应词（按词性归组）。无需联网、不消耗 API；结果下方会标明这次是「离线词典」还是「联网翻译」。
+
+编译后单文件大小大约57MB（含 16MB 内置离线词典）.占用内存很低，低配电脑也可以流畅
 
 ---
 
@@ -74,6 +76,8 @@ python main_app.py
 ├── requirements.txt                                   # 运行依赖
 ├── requirements-dev.txt                               # 测试与构建依赖
 ├── build_with_ocr_onefile.py                           # PyInstaller 单文件构建脚本
+├── build_ecdict.py                                      # 英→中词典生成脚本（ecdict.csv → *.db）
+├── build_cedict_zh_en.py                                # 中→英词典生成脚本（CC-CEDICT → *.db）
 ├── gifrecorder-0.2.1-cp311-cp311-win_amd64.whl       # GIF录制 Rust 预编译包
 ├── longstitch-0.3.11-cp311-cp311-win_amd64.whl        # 长截图拼接 Rust 预编译包
 ├── pyclipboard-0.3.14-cp311-cp311-win_amd64.whl      # 剪切板 Rust 预编译包
@@ -87,6 +91,7 @@ python main_app.py
 │   ├── capture/             # 截图捕获模块 — 屏幕截图与窗口识别
 │   ├── clipboard/           # 剪切板管理模块 — 历史记录、分组/快速启动、导入导出、搜索
 │   ├── core/                # 核心基础模块 — 启动引导、日志、资源、主题、国际化、快捷键
+│   ├── dictionary/          # 离线词典模块 — 中英双向（英→中 ECDICT / 中→英 CC-CEDICT）
 │   ├── gif/                 # GIF录制模块 — 屏幕录制、编辑、回放、导出
 │   ├── ocr/                 # OCR模块 — PP-OCR 文字识别
 │   ├── pin/                 # 钉图模块 — 截图置顶、编辑、OCR、翻译
@@ -434,6 +439,138 @@ translation/
 - 翻译结果弹窗显示，支持复制
 - 原文换行原样送给引擎（不做分句/合并等预处理）；**保留格式**＝在提示词里要求译文保持原文的段落与换行结构
 - 截图翻译与截图总结各自独立窗口：可先截图翻译再截图总结，两份结果同时保留、互不覆盖，各自在途请求也互不打断
+- 划词翻译小窗会先查**离线词典**（见下），命中即秒出词条并跳过联网；中英双向都支持
+- 结果来源对用户可见：小窗结果下方标注「离线词典 · ECDICT / CC-CEDICT」或「联网翻译 · 引擎名」，完整窗口标题栏常驻引擎名
+
+---
+
+### dictionary/ — 离线词典模块（中英双向）
+
+内置的本地词典，**两个方向都离线**。划词翻译小窗取到的是**单个词或短短语**时，
+先在本地查词条，命中就直接显示、默认不再调用翻译接口；未命中（或整句）才回退联网翻译。
+
+| 方向 | 数据源 | 词条数 | 体积 | 许可 |
+|---|---|---|---|---|
+| 英 → 中 | ECDICT | 110,261 | 16.4 MB | MIT，可随包分发 |
+| 中 → 英 | CC-CEDICT | 121,408 | 13.9 MB | CC BY-SA 4.0，可随包分发（需署名） |
+
+```
+dictionary/
+├── __init__.py              # 对外导出
+├── models.py                # DictEntry（英→中）/ ZhEnEntry（中→英）—— 词条模型与字段解析
+├── store.py                 # EcdictStore / ZhEnStore —— 只读查询
+├── service.py               # DictionaryService —— 单例，定位词典文件、懒加载、按设置查询
+├── schema.py                # 汉英表结构与释义打包约定（生成方/读取方共用）
+├── render.py                # 词条 → 小窗富文本卡片（按类型分派）
+├── i18n.py                  # "Dictionary" 翻译上下文
+├── DICTIONARY_LICENSES.txt  # 两条词库的来源与许可说明（MIT / CC BY-SA 4.0）
+├── ECDICT_LICENSE.txt       # ECDICT 的 MIT 许可全文
+└── data/
+    ├── ecdict_core.db       # 英→中，由 build_ecdict.py 生成（未进版本库）
+    └── cedict_zh_en.db      # 中→英，由 build_cedict_zh_en.py 生成（未进版本库）
+```
+
+**英 → 中 查询流水线**（全部本地，实测约 0.07 ms/词）：
+
+```
+清洗(去标点/统一撇号) → ①精确 word COLLATE NOCASE
+  → ②sw 去符号匹配(long-time ↔ longtime ↔ long time)
+  → ③词形还原(gave→give、mice→mouse、running→run 并保留自身实义)
+  → ④前缀候选(词典未收录时提示"你是不是想查…")
+  → 未命中 → 回退联网翻译
+```
+
+**中 → 英 查询**（CC-CEDICT）：
+
+```
+清洗 → ①精确匹配 simp（简体）→ ②再试 trad（繁体）
+     → ③去掉末尾"的/了/地"再试一次 → ④前缀候选
+     → 未命中 → 回退联网翻译
+```
+
+同一词头常有**多条**条目（例如 `苹果` 既有「苹果公司」也有「apple」）。
+CC-CEDICT 的约定是**拼音首字母大写 = 专有名词**，据此把普通词义排在专有名词之前，
+所以 `苹果` 先给 `apple` 而不是 Apple 公司。示例：
+
+```
+完成   [wán chéng]     v. complete · accomplish
+漂亮   [piào liang]    pretty · beautiful
+奇怪   [qí guài]       strange · odd / v. marvel · be baffled
+高兴   [gāo xìng]      happy · glad · willing · in a cheerful mood
+```
+
+**结果来源对用户可见**：小窗在结果下方固定显示一行来源标签，一眼就能区分
+「这次是本地查的」还是「这次走了大模型联网」；标签是独立控件，**不会混进译文**，
+所以「复制译文」拿到的仍然是干净文本。完整翻译窗口的标题栏也会常驻显示引擎名。
+
+| 结果来源 | 小窗显示 | 颜色 |
+|---|---|---|
+| ECDICT 英→中 | `离线词典 · ECDICT` | 绿色 |
+| CC-CEDICT 中→英 | `离线词典 · CC-CEDICT` | 绿色 |
+| 大模型联网翻译 | `联网翻译 · <引擎名>`（如 `联网翻译 · OpenAI API`） | 主题色 |
+
+![划词小窗-英中离线](docs/images/popup-offline-dictionary.png)
+![划词小窗-中英离线](docs/images/popup-zh-en-dictionary.png)
+![划词小窗-大模型联网翻译](docs/images/popup-online-llm.png)
+
+暗色主题下的两张离线卡片：
+
+![划词小窗-英中离线-暗色](docs/images/popup-offline-dictionary-dark.png)
+![划词小窗-中英离线-暗色](docs/images/popup-zh-en-dictionary-dark.png)
+
+**生成词典**：
+
+```bash
+# 英→中（需要 ECDICT 的 ecdict.csv）
+python build_ecdict.py              # 核心词典（默认，约 16 MB）
+python build_ecdict.py --mode full  # 全量词典（约 100 MB）
+python build_ecdict.py --src D:\ECDICT\ecdict.csv --out my.db
+
+# 中→英（需要 CC-CEDICT 的 cedict_ts.u8）
+python build_cedict_zh_en.py
+python build_cedict_zh_en.py --src D:\cedict_ts.u8
+```
+
+`cedict_ts.u8` 可从官方推荐的 release 下载（约 3.8 MB 压缩包，解压后 9.4 MB）：
+
+```
+https://www.mdbg.net/chinese/dictionary?page=cc-cedict
+```
+
+内置核心词典的筛选规则：柯林斯星级 / 牛津三千 / 考纲标签 /
+BNC 或当代语料库词频 ≤ 60000，**外加** `exchange` 含 `0:` 的变形词
+（`gave`、`mice`、`taken` 这类词的词频与标签都是空的，只按高频筛选会把它们全漏掉）。
+实测 110,261 词条 / 16.4 MB，在科技、文学、商务、口语四类真实英文样本上覆盖率 100%。
+
+汉英库的转换要点：同一词头常有多条条目，按「拼音首字母大写 = 专有名词」把
+普通词义排前面；释义里的 `CL:`（量词）是噪音，跳过；`to ...` 推断为动词。
+实测 121,408 词头 / 215,092 释义 / 13.9 MB（简繁双列存储 + 释义打包，避免文本翻倍）。
+
+可选的全量词典放在 `%LOCALAPPDATA%\Jietuba\dictionary\`，或在
+**设置 → 翻译 → 离线词典**里手动指定文件，程序会优先使用覆盖更全的那个。
+
+> **打包注意：** 两条词库都由上面的脚本生成、体积较大，**不进版本库**
+> （见 `.gitignore`）。`build_with_ocr_onefile.py` 在缺失时会自动重新生成。
+
+**相关设置**（设置 → 翻译 → 离线词典）：启用开关、命中时跳过联网、
+中→英 离线查词开关、显示音标 / 考纲标签与星级 / 词频 / 词形变化、自定义词典文件路径。
+
+**数据来源与许可：**
+
+| 方向 | 来源 | 许可 | 义务 |
+|---|---|---|---|
+| 英 → 中 | [ECDICT](https://github.com/skywind3000/ECDICT) | MIT | 保留版权与许可声明 |
+| 中 → 英 | [CC-CEDICT](https://cc-cedict.org/)（MDBG 发布） | CC BY-SA 4.0 | 署名来源；改进后的数据以相同许可共享 |
+
+两者的完整说明见 `main/dictionary/DICTIONARY_LICENSES.txt`，ECDICT 的 MIT 全文见
+`main/dictionary/ECDICT_LICENSE.txt`。本项目对 CC BY-SA 4.0 的满足方式：
+
+* **署名**：小窗结果下方常驻 `离线词典 · CC-CEDICT` 来源标签；
+  「关于」页给出 ECDICT 链接；README 与本许可文件标注来源与许可。
+* **相同方式共享**：CC-CEDICT 数据**单独存放**在 `cedict_zh_en.db`，
+  与 MIT 的 ECDICT 词库和本项目自有代码物理隔离；转换脚本
+  `build_cedict_zh_en.py` 只做格式转换（文本 → SQLite），未改动词条内容。
+  若你修改了词条内容，请把修改后的数据同样以 CC BY-SA 4.0 发布。
 
 ---
 
@@ -484,7 +621,7 @@ ui/
 │   ├── page_capture.py      # 截图设置页
 │   ├── page_clipboard.py    # 剪切板设置页
 │   ├── page_hotkey.py       # 快捷键设置页
-│   ├── page_translation.py  # 翻译设置页
+│   ├── page_translation.py  # 翻译设置页（含离线词典设置）
 │   ├── page_log.py          # 日志设置页
 │   ├── page_developer.py    # 开发者设置页
 │   ├── page_misc.py         # 杂项设置页
@@ -548,6 +685,11 @@ tests/
 ├── test_save_service.py     # 保存服务测试
 ├── test_stitch_algorithm.py # 拼接算法测试
 ├── test_theme_manager.py    # 主题管理器测试
+├── test_dictionary_store.py # 离线词典解析与查询测试（词形还原 / 索引 / 覆盖门禁）
+├── test_dictionary_zh_en.py # 汉英（中→英，CC-CEDICT）词典解析与查询测试
+├── test_dictionary_popup.py # 离线词典接入划词小窗的行为测试（中英双向路由）
+├── test_dictionary_settings.py # 离线词典设置页与路径解析测试
+├── test_result_source_badge.py # 「结果来源」标签测试（离线/联网 可区分）
 ├── test_tool_settings.py    # 工具设置测试
 └── test_tools_base.py       # 工具基类测试
 ```

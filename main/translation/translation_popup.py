@@ -225,6 +225,8 @@ class TranslationPopup(QWidget):
     SOURCE_MAX_HEIGHT = 120
     RESULT_MIN_HEIGHT = 44
     RESULT_MAX_HEIGHT = 208
+    # 词典卡片比一行译文高得多，单独放宽上限（仍然超出时用滚动条）
+    RESULT_MAX_HEIGHT_DICT = 330
 
     def __init__(self, parent: QWidget | None = None):
         flags = (
@@ -240,7 +242,12 @@ class TranslationPopup(QWidget):
         # Guards textChanged while the popup fills the box programmatically.
         self._suppress_auto = False
         self._backend_ready = True
+        self._backend_name = ""
         self._loading_step = 0
+        # True 表示结果区当前显示的是离线词典卡片（决定结果区高度上限）
+        self._dictionary_mode = False
+        # 结果来源："offline"（本地词典）/ "online"（联网翻译）/ ""（无）
+        self._source_origin = ""
         self._target_lang = "ZH"  # 当前目标语言
         # True 表示当前目标语言是按源文语种自动选的（用户还没手动改过），
         # 此时外层按源文重新判定即可覆盖；用户改过之后以用户选择为准。
@@ -294,6 +301,13 @@ class TranslationPopup(QWidget):
         self.result_edit = self._make_text_view("popupResult")
         self.result_edit.setMaximumHeight(self.RESULT_MAX_HEIGHT)
         root.addWidget(self.result_edit)
+
+        # 结果来源：离线词典 / 联网翻译。单独一行，不混进结果文本，
+        # 这样"复制译文"拿到的仍然是干净的译文。
+        self.source_badge = QLabel("", self)
+        self.source_badge.setObjectName("popupSourceBadge")
+        self.source_badge.setVisible(False)
+        root.addWidget(self.source_badge)
 
         footer = QHBoxLayout()
         footer.setContentsMargins(0, 1, 0, 0)
@@ -437,6 +451,8 @@ class TranslationPopup(QWidget):
 
     def _enter_loading(self) -> None:
         """Reveal the result area in its pending state."""
+        self._dictionary_mode = False
+        self._set_source_badge("")
         self.divider.show()
         self.result_edit.show()
         self.copy_button.show()
@@ -450,6 +466,8 @@ class TranslationPopup(QWidget):
     def _hide_result(self) -> None:
         """Collapse the result area while there is nothing to translate."""
         self._loading_timer.stop()
+        self._dictionary_mode = False
+        self._set_source_badge("")
         self.result_edit.clear()
         self.result_edit.setProperty("error", False)
         self._refresh_result_style()
@@ -468,8 +486,13 @@ class TranslationPopup(QWidget):
 
     def show_result(self, translated_text: str, detected_lang: str = "") -> None:
         self._loading_timer.stop()
+        self._dictionary_mode = False
         self._translated_text = translated_text
         self._error_text = "" if translated_text else _tr("No translation result")
+        # 明确标出来源：这一条是大模型联网翻译的结果
+        self._set_source_badge(
+            "online", self._online_source_text() if translated_text else ""
+        )
         self.result_edit.setProperty("error", False)
         self.result_edit.setPlainText(translated_text or _tr("No translation result"))
         self.divider.show()
@@ -481,6 +504,8 @@ class TranslationPopup(QWidget):
 
     def show_error(self, message: str) -> None:
         self._loading_timer.stop()
+        self._dictionary_mode = False
+        self._set_source_badge("")
         self._translated_text = ""
         self._error_text = message
         self.result_edit.setProperty("error", True)
@@ -492,12 +517,101 @@ class TranslationPopup(QWidget):
         self._refresh_result_style()
         self._fit_content()
 
+    # ── 离线词典 ────────────────────────────────────────────────────
+    def show_dictionary(self, entry, options=None) -> None:
+        """在结果区显示一条离线词典词条卡片。
+
+        卡片用富文本排版，但 ``_translated_text`` 存的是纯文本，
+        这样「复制译文」拿到的仍然是干净可粘贴的释义。
+        英→中（ECDICT）与中→英（汉英库）共用这里，由渲染层按类型分派。
+        """
+        from dictionary.render import render_entry_card
+
+        self._loading_timer.stop()
+        self._dictionary_mode = True
+        self._translated_text = entry.to_plain_text()
+        self._error_text = ""
+        # 明确标出来源：这一条来自本地词典，没有联网
+        self._set_source_badge("offline", self._offline_source_text(entry))
+        self.result_edit.setProperty("error", False)
+        self.result_edit.setHtml(
+            render_entry_card(entry, self._palette, options)
+        )
+        self.divider.show()
+        self.result_edit.show()
+        self.copy_button.show()
+        self.copy_button.setEnabled(bool(self._translated_text))
+        self._refresh_result_style()
+        self._fit_content()
+
+    def show_dictionary_miss(self, query: str, suggestions=()) -> None:
+        """词典没收录时的提示（通常接着会回退到联网翻译）。"""
+        from dictionary.render import plain_text_for_miss, render_miss_html
+
+        self._loading_timer.stop()
+        self._dictionary_mode = True
+        self._translated_text = ""
+        self._error_text = plain_text_for_miss(query, suggestions)
+        self._set_source_badge("offline", self._offline_source_text())
+        self.result_edit.setProperty("error", False)
+        self.result_edit.setHtml(render_miss_html(query, suggestions, self._palette))
+        self.divider.show()
+        self.result_edit.show()
+        self.copy_button.show()
+        self.copy_button.setEnabled(False)
+        self._refresh_result_style()
+        self._fit_content()
+
+    # ── 结果来源标签 ────────────────────────────────────────────────
+    def _set_source_badge(self, origin: str, text: str = "") -> None:
+        """标记这次结果的来源：``offline``（本地词典）/ ``online``（联网）。
+
+        标签是独立控件而非结果文本的一部分，所以复制译文不会带上它。
+        """
+        self._source_origin = origin if text else ""
+        self.source_badge.setText(text)
+        self.source_badge.setProperty("origin", origin if text else "")
+        self.source_badge.setVisible(bool(text))
+        self.source_badge.style().unpolish(self.source_badge)
+        self.source_badge.style().polish(self.source_badge)
+
+    def _offline_source_text(self, entry=None) -> str:
+        """离线结果的来源标注：英→中 与 中→英 的数据源不同，要分别署名。"""
+        try:
+            from dictionary.models import ZhEnEntry
+
+            if isinstance(entry, ZhEnEntry):
+                return _tr("Offline Dictionary · CC-CEDICT")
+        except Exception:
+            pass
+        return _tr("Offline Dictionary · ECDICT")
+
+    def _online_source_text(self) -> str:
+        engine = (self._backend_name or "").strip() or _tr("Translation API")
+        return _tr("Online Translation · {engine}").format(engine=engine)
+
+    def _dictionary_can_handle(self) -> bool:
+        """当前输入框里的文本能否由本地词典处理。
+
+        用于"翻译引擎没配置"时的判断：如果一个英文单词能本地查出来，
+        就不该先弹「API Key 未配置」。
+        """
+        try:
+            from dictionary import get_dictionary_service, is_lookup_candidate
+
+            if not is_lookup_candidate(self._source_text):
+                return False
+            return get_dictionary_service().is_available()
+        except Exception:
+            return False
+
     def set_backend_ready(self, ready: bool) -> None:
         """Backward-compatible helper for older callers."""
         self.set_backend_status("Translation API", ready)
 
     def set_backend_status(self, name: str, ready: bool) -> None:
-        # 小窗已移除标题区的引擎徽标；仅记录就绪状态供输入框逻辑使用。
+        # 标题区没有引擎徽标；这里记下引擎名，联网出结果时显示在「来源」行上。
+        self._backend_name = (name or "").strip()
         self._backend_ready = ready
 
     def set_theme(self, theme_name: str) -> None:
@@ -517,6 +631,12 @@ class TranslationPopup(QWidget):
                 padding: 2px 3px; font-size: 14px; font-weight: 550;
             }}
             QTextEdit#popupResult[error="true"] {{ color: {p.danger}; font-weight: 500; }}
+            QLabel#popupSourceBadge {{
+                color: {p.text_3}; font-size: 11px;
+                padding: 1px 3px 0 3px;
+            }}
+            QLabel#popupSourceBadge[origin="offline"] {{ color: {p.green}; }}
+            QLabel#popupSourceBadge[origin="online"] {{ color: {p.accent}; }}
             QFrame#popupDivider {{ background: {p.fill_hover}; border: none; }}
             QLabel#popupLangLabel {{
                 color: {p.text_3}; font-size: 11px; padding-left: 3px;
@@ -572,7 +692,8 @@ class TranslationPopup(QWidget):
             self._hide_result()
             self._fit_content()
             return
-        if not self._backend_ready:
+        if not self._backend_ready and not self._dictionary_can_handle():
+            # 引擎没配置、本地词典也帮不上忙，才直接报"未配置"
             self.show_error(_tr("API key not configured"))
             return
         self._manual_debounce.start()
@@ -602,8 +723,14 @@ class TranslationPopup(QWidget):
             self.source_edit, self.SOURCE_MIN_HEIGHT, self.SOURCE_MAX_HEIGHT
         )
         if self.result_edit.isVisible():
+            # 词典卡片内容多，用更宽松的高度上限
+            maximum = (
+                self.RESULT_MAX_HEIGHT_DICT
+                if self._dictionary_mode
+                else self.RESULT_MAX_HEIGHT
+            )
             self._fit_text_view(
-                self.result_edit, self.RESULT_MIN_HEIGHT, self.RESULT_MAX_HEIGHT
+                self.result_edit, self.RESULT_MIN_HEIGHT, maximum
             )
         self.layout().activate()
         desired = self.sizeHint().height()

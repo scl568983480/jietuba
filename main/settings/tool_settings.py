@@ -222,6 +222,20 @@ class ToolSettingsManager(QObject):
         "summary_target_lang": "",             # 总结目标语言（空为跟随翻译目标语言）
         "translation_preserve_formatting": True,  # 保留格式
 
+        # 离线词典（ECDICT 本地英汉词典，划词小窗命中即秒出词条）
+        "dictionary_enabled": True,            # 启用离线词典
+        "dictionary_skip_online": True,        # 命中词典时跳过联网翻译（省 API、响应快）
+        "dictionary_path": "",                 # 自定义词典文件/目录（空=自动查找）
+        "dictionary_show_phonetic": True,      # 词条显示音标
+        "dictionary_show_tags": True,          # 词条显示考纲标签/柯林斯星级/牛津3000
+        "dictionary_show_rank": True,          # 词条显示词频
+        "dictionary_show_forms": True,         # 词条显示词形变化
+
+        # 汉英（中 → 英）离线词典
+        # 数据来自 CC-CEDICT（CC BY-SA 4.0，可随包分发）
+        "dictionary_zh_en_enabled": True,      # 启用汉英离线查词
+        "dictionary_zh_en_path": "",           # 自定义汉英词典文件/目录（空=自动查找）
+
         # ==================== 6. 日志 ====================
         "log_enabled": True,                   # 日志启用
         "log_dir": os.path.join(os.path.expanduser("~"), "AppData", "Local", "Jietuba", "Logs"),
@@ -985,7 +999,70 @@ class ToolSettingsManager(QObject):
             "target_lang": saved_target_lang or self.get_translation_target_lang(),
             "preserve_formatting": self.get_translation_preserve_formatting(),
         }
-    
+
+    # ==================== 离线词典设置 ====================
+
+    def get_dictionary_enabled(self) -> bool:
+        """是否启用离线词典。"""
+        return bool(self.get_app_setting("dictionary_enabled", True))
+
+    def set_dictionary_enabled(self, value: bool):
+        self.set_app_setting("dictionary_enabled", bool(value))
+
+    def get_dictionary_skip_online(self) -> bool:
+        """命中词典时是否跳过联网翻译。"""
+        return bool(self.get_app_setting("dictionary_skip_online", True))
+
+    def set_dictionary_skip_online(self, value: bool):
+        self.set_app_setting("dictionary_skip_online", bool(value))
+
+    def get_dictionary_path(self) -> str:
+        """自定义词典文件或目录；空表示自动查找。"""
+        return self.get_app_setting("dictionary_path", "") or ""
+
+    def set_dictionary_path(self, value: str):
+        """设置词典路径；路径变化后需要重载词典句柄。"""
+        self.set_app_setting("dictionary_path", (value or "").strip())
+
+    def get_dictionary_show_phonetic(self) -> bool:
+        return bool(self.get_app_setting("dictionary_show_phonetic", True))
+
+    def set_dictionary_show_phonetic(self, value: bool):
+        self.set_app_setting("dictionary_show_phonetic", bool(value))
+
+    def get_dictionary_show_tags(self) -> bool:
+        return bool(self.get_app_setting("dictionary_show_tags", True))
+
+    def set_dictionary_show_tags(self, value: bool):
+        self.set_app_setting("dictionary_show_tags", bool(value))
+
+    def get_dictionary_show_rank(self) -> bool:
+        return bool(self.get_app_setting("dictionary_show_rank", True))
+
+    def set_dictionary_show_rank(self, value: bool):
+        self.set_app_setting("dictionary_show_rank", bool(value))
+
+    def get_dictionary_show_forms(self) -> bool:
+        return bool(self.get_app_setting("dictionary_show_forms", True))
+
+    def set_dictionary_show_forms(self, value: bool):
+        self.set_app_setting("dictionary_show_forms", bool(value))
+
+    # ── 汉英（中 → 英）离线词典 ─────────────────────────────────────
+    def get_dictionary_zh_en_enabled(self) -> bool:
+        """是否启用汉英离线查词（中→英）。"""
+        return bool(self.get_app_setting("dictionary_zh_en_enabled", True))
+
+    def set_dictionary_zh_en_enabled(self, value: bool):
+        self.set_app_setting("dictionary_zh_en_enabled", bool(value))
+
+    def get_dictionary_zh_en_path(self) -> str:
+        """自定义汉英词典文件或目录；空表示自动查找。"""
+        return self.get_app_setting("dictionary_zh_en_path", "") or ""
+
+    def set_dictionary_zh_en_path(self, value: str):
+        self.set_app_setting("dictionary_zh_en_path", (value or "").strip())
+
     # ==================== 剪贴板设置 ====================
     
     # 注意：get/set_clipboard_hotkey 和 get/set_clipboard_hotkey_2

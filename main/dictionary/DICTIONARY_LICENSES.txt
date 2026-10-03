@@ -1,0 +1,58 @@
+中英双向离线词典的数据来源与许可
+====================================
+
+本目录下有两条词库，来源与许可**各不相同**：
+
+1. 英 → 中：ecdict_core.db / ecdict_full.db
+2. 中 → 英：cedict_zh_en.db
+
+
+1. 英 → 中（ECDICT）
+--------------------
+
+    项目：ECDICT — Free English to Chinese Dictionary Database
+    作者：Linwei (skywind3000)
+    主页：https://github.com/skywind3000/ECDICT
+    许可：MIT License, Copyright (c) 2025 Linwei
+
+MIT 允许自由使用、修改和再分发（含随本软件分发），条件是保留版权声明与
+许可声明。生成脚本：仓库根目录的 build_ecdict.py。
+完整许可见同目录的 ECDICT_LICENSE.txt。
+
+
+2. 中 → 英（CC-CEDICT）
+-----------------------
+
+    项目：CC-CEDICT — Community maintained free Chinese-English dictionary
+    发布：MDBG
+    主页：https://cc-cedict.org/
+    下载：https://www.mdbg.net/chinese/dictionary?page=cc-cedict
+    许可：Creative Commons Attribution-ShareAlike 4.0 International
+          (CC BY-SA 4.0)
+          https://creativecommons.org/licenses/by-sa/4.0/
+
+许可要点（引自官方说明）：
+
+> 允许用于非商业与商业目的，条件是：
+> 1) 注明数据来源（attribution）；
+> 2) 若你改进 / 增补了数据，需以相同许可共享这些改动（share alike）。
+
+规模：约 12.5 万词条，含简体、繁体、带声调拼音与英文释义。
+生成脚本：仓库根目录的 build_cedict_zh_en.py。
+
+### 本项目如何满足 CC BY-SA 4.0
+
+* **署名**：软件「关于」页给出 CC-CEDICT 链接；小窗结果下方常驻
+  `离线词典 · CC-CEDICT` 来源标签；本文件与 README 均标注来源与许可。
+* **相同方式共享**：CC-CEDICT 的数据**单独存放**在 cedict_zh_en.db 中，
+  与 MIT 的 ECDICT 词库、以及本项目自有代码物理隔离。本项目的转换脚本
+  build_cedict_zh_en.py 只是格式转换（文本 → SQLite），未改动词条内容；
+  若你修改了词条内容，请把修改后的 CC-CEDICT 数据同样以 CC BY-SA 4.0 发布。
+* 该词库可随软件一起分发。
+
+
+引用（若需在文档中致谢）
+------------------------
+
+    CC-CEDICT (https://cc-cedict.org/), licensed under CC BY-SA 4.0.
+    ECDICT (https://github.com/skywind3000/ECDICT), licensed under MIT.

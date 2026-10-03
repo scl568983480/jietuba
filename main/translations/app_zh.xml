@@ -3099,4 +3099,240 @@ SOFTWARE.</translation></message>
             <translation>截图吧启动成功，已就绪</translation>
         </message>
     </context>
+
+<!-- /* dictionary-i18n */ Offline Dictionary (ECDICT) -->
+<context>
+    <name>Dictionary</name>
+    <message>
+        <source>Middle School</source>
+        <translation>中考</translation>
+    </message>
+    <message>
+        <source>College Entrance</source>
+        <translation>高考</translation>
+    </message>
+    <message>
+        <source>CET-4</source>
+        <translation>四级</translation>
+    </message>
+    <message>
+        <source>CET-6</source>
+        <translation>六级</translation>
+    </message>
+    <message>
+        <source>Postgraduate</source>
+        <translation>考研</translation>
+    </message>
+    <message>
+        <source>TOEFL</source>
+        <translation>托福</translation>
+    </message>
+    <message>
+        <source>IELTS</source>
+        <translation>雅思</translation>
+    </message>
+    <message>
+        <source>GRE</source>
+        <translation>GRE</translation>
+    </message>
+    <message>
+        <source>Past tense</source>
+        <translation>过去式</translation>
+    </message>
+    <message>
+        <source>Past participle</source>
+        <translation>过去分词</translation>
+    </message>
+    <message>
+        <source>Present participle</source>
+        <translation>现在分词</translation>
+    </message>
+    <message>
+        <source>Third person singular</source>
+        <translation>第三人称单数</translation>
+    </message>
+    <message>
+        <source>Comparative</source>
+        <translation>比较级</translation>
+    </message>
+    <message>
+        <source>Superlative</source>
+        <translation>最高级</translation>
+    </message>
+    <message>
+        <source>Plural</source>
+        <translation>复数</translation>
+    </message>
+    <message>
+        <source>Oxford 3000</source>
+        <translation>牛津3000</translation>
+    </message>
+    <message>
+        <source>Collins {stars}</source>
+        <translation>柯林斯 {stars}</translation>
+    </message>
+    <message>
+        <source>Frequency {rank}</source>
+        <translation>词频 {rank}</translation>
+    </message>
+    <message>
+        <source>Other senses of this form</source>
+        <translation>该词形另有释义</translation>
+    </message>
+    <message>
+        <source>Forms: {forms}</source>
+        <translation>变形：{forms}</translation>
+    </message>
+    <message>
+        <source>Offline Dictionary · ECDICT</source>
+        <translation>离线词典 · ECDICT</translation>
+    </message>
+    <message>
+        <source>Not in dictionary: "{query}"</source>
+        <translation>词典未收录「{query}」</translation>
+    </message>
+    <message>
+        <source>Did you mean:</source>
+        <translation>你是不是想查：</translation>
+    </message>
+    <message>
+        <source>"{query}" is the {inflection} of "{headword}"</source>
+        <translation>「{query}」是「{headword}」的{inflection}</translation>
+    </message>
+</context>
+<context>
+    <name>SettingsDialog</name>
+    <message>
+        <source>Offline Dictionary</source>
+        <translation>离线词典</translation>
+    </message>
+    <message>
+        <source>Enable Offline Dictionary</source>
+        <translation>启用离线词典</translation>
+    </message>
+    <message>
+        <source>Look English words up locally in the compact popup, without calling the translation API.</source>
+        <translation>在划词小窗里本地查询英文单词，不调用翻译接口。</translation>
+    </message>
+    <message>
+        <source>Skip Online When Found</source>
+        <translation>命中时跳过联网</translation>
+    </message>
+    <message>
+        <source>When the word is in the dictionary, show it immediately and skip the network request.</source>
+        <translation>词典里有这个词时立即显示释义，不再发起网络请求。</translation>
+    </message>
+    <message>
+        <source>Show Phonetic</source>
+        <translation>显示音标</translation>
+    </message>
+    <message>
+        <source>Show Exam Tags and Collins Stars</source>
+        <translation>显示考纲标签与柯林斯星级</translation>
+    </message>
+    <message>
+        <source>Show Word Frequency</source>
+        <translation>显示词频</translation>
+    </message>
+    <message>
+        <source>Show Word Forms</source>
+        <translation>显示词形变化</translation>
+    </message>
+    <message>
+        <source>Dictionary File</source>
+        <translation>词典文件</translation>
+    </message>
+    <message>
+        <source>Auto (bundled dictionary)</source>
+        <translation>自动（使用内置词典）</translation>
+    </message>
+    <message>
+        <source>Browse</source>
+        <translation>浏览</translation>
+    </message>
+    <message>
+        <source>Auto</source>
+        <translation>自动</translation>
+    </message>
+    <message>
+        <source>Choose Dictionary File</source>
+        <translation>选择词典文件</translation>
+    </message>
+    <message>
+        <source>No dictionary file found. Build ecdict_core.db with build_ecdict.py, or choose a file below.</source>
+        <translation>未找到词典文件。请用 build_ecdict.py 生成 ecdict_core.db，或在下面选择一个文件。</translation>
+    </message>
+    <message>
+        <source>Loaded: {count} entries, {size} MB</source>
+        <translation>已加载：{count} 词条，{size} MB</translation>
+    </message>
+    <message>
+        <source>Dictionary status unavailable: {error}</source>
+        <translation>词典状态不可用：{error}</translation>
+    </message>
+</context>
+
+<!-- /* result-source-badge */ -->
+<context>
+    <name>TranslationDialog</name>
+    <message>
+        <source>Offline Dictionary · ECDICT</source>
+        <translation>离线词典 · ECDICT</translation>
+    </message>
+    <message>
+        <source>Online Translation · {engine}</source>
+        <translation>联网翻译 · {engine}</translation>
+    </message>
+    <message>
+        <source>Translation API</source>
+        <translation>翻译接口</translation>
+    </message>
+    <message>
+        <source>Online translation engine</source>
+        <translation>联网翻译所用的大模型引擎</translation>
+    </message>
+</context>
+
+<!-- /* zh-en-lookup */ -->
+<context>
+    <name>Dictionary</name>
+    <message>
+        <source>Chinese → English</source>
+        <translation>中文 → 英文</translation>
+    </message>
+    <message>
+        <source>Chinese → English · Offline</source>
+        <translation>中文 → 英文 · 离线词典</translation>
+    </message>
+</context>
+<context>
+    <name>TranslationDialog</name>
+    <message>
+        <source>Offline Dictionary · CC-CEDICT</source>
+        <translation>离线词典 · CC-CEDICT</translation>
+    </message>
+</context>
+<context>
+    <name>SettingsDialog</name>
+    <message>
+        <source>Enable Chinese → English Lookup</source>
+        <translation>启用中→英 离线查词</translation>
+    </message>
+    <message>
+        <source>Look Chinese words up locally and show their English equivalents, without calling the translation API.</source>
+        <translation>在本地把中文词查成英文对应词，不调用翻译接口。</translation>
+    </message>
+    <message>
+        <source>EN → ZH: {count} entries, {size} MB</source>
+        <translation>英→中：{count} 词条，{size} MB</translation>
+    </message>
+    <message>
+        <source>ZH → EN: {count} entries, {size} MB</source>
+        <translation>中→英：{count} 词条，{size} MB</translation>
+    </message>
+    <message>
+        <source>No Chinese → English dictionary. Build cedict_zh_en.db with build_cedict_zh_en.py to look Chinese words up offline.</source>
+        <translation>未找到汉英词典。用 build_cedict_zh_en.py 生成 cedict_zh_en.db 即可离线查中文词。</translation>
+    </message>
+</context>
 </TS>

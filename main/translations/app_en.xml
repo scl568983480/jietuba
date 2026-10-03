@@ -2977,4 +2977,240 @@ SOFTWARE.</translation></message>
             <translation>Jietuba Startup successful</translation>
         </message>
     </context>
+
+<!-- /* dictionary-i18n */ Offline Dictionary (ECDICT) -->
+<context>
+    <name>Dictionary</name>
+    <message>
+        <source>Middle School</source>
+        <translation>Middle School</translation>
+    </message>
+    <message>
+        <source>College Entrance</source>
+        <translation>College Entrance</translation>
+    </message>
+    <message>
+        <source>CET-4</source>
+        <translation>CET-4</translation>
+    </message>
+    <message>
+        <source>CET-6</source>
+        <translation>CET-6</translation>
+    </message>
+    <message>
+        <source>Postgraduate</source>
+        <translation>Postgraduate</translation>
+    </message>
+    <message>
+        <source>TOEFL</source>
+        <translation>TOEFL</translation>
+    </message>
+    <message>
+        <source>IELTS</source>
+        <translation>IELTS</translation>
+    </message>
+    <message>
+        <source>GRE</source>
+        <translation>GRE</translation>
+    </message>
+    <message>
+        <source>Past tense</source>
+        <translation>Past tense</translation>
+    </message>
+    <message>
+        <source>Past participle</source>
+        <translation>Past participle</translation>
+    </message>
+    <message>
+        <source>Present participle</source>
+        <translation>Present participle</translation>
+    </message>
+    <message>
+        <source>Third person singular</source>
+        <translation>Third person singular</translation>
+    </message>
+    <message>
+        <source>Comparative</source>
+        <translation>Comparative</translation>
+    </message>
+    <message>
+        <source>Superlative</source>
+        <translation>Superlative</translation>
+    </message>
+    <message>
+        <source>Plural</source>
+        <translation>Plural</translation>
+    </message>
+    <message>
+        <source>Oxford 3000</source>
+        <translation>Oxford 3000</translation>
+    </message>
+    <message>
+        <source>Collins {stars}</source>
+        <translation>Collins {stars}</translation>
+    </message>
+    <message>
+        <source>Frequency {rank}</source>
+        <translation>Frequency {rank}</translation>
+    </message>
+    <message>
+        <source>Other senses of this form</source>
+        <translation>Other senses of this form</translation>
+    </message>
+    <message>
+        <source>Forms: {forms}</source>
+        <translation>Forms: {forms}</translation>
+    </message>
+    <message>
+        <source>Offline Dictionary · ECDICT</source>
+        <translation>Offline Dictionary · ECDICT</translation>
+    </message>
+    <message>
+        <source>Not in dictionary: "{query}"</source>
+        <translation>Not in dictionary: "{query}"</translation>
+    </message>
+    <message>
+        <source>Did you mean:</source>
+        <translation>Did you mean:</translation>
+    </message>
+    <message>
+        <source>"{query}" is the {inflection} of "{headword}"</source>
+        <translation>"{query}" is the {inflection} of "{headword}"</translation>
+    </message>
+</context>
+<context>
+    <name>SettingsDialog</name>
+    <message>
+        <source>Offline Dictionary</source>
+        <translation>Offline Dictionary</translation>
+    </message>
+    <message>
+        <source>Enable Offline Dictionary</source>
+        <translation>Enable Offline Dictionary</translation>
+    </message>
+    <message>
+        <source>Look English words up locally in the compact popup, without calling the translation API.</source>
+        <translation>Look English words up locally in the compact popup, without calling the translation API.</translation>
+    </message>
+    <message>
+        <source>Skip Online When Found</source>
+        <translation>Skip Online When Found</translation>
+    </message>
+    <message>
+        <source>When the word is in the dictionary, show it immediately and skip the network request.</source>
+        <translation>When the word is in the dictionary, show it immediately and skip the network request.</translation>
+    </message>
+    <message>
+        <source>Show Phonetic</source>
+        <translation>Show Phonetic</translation>
+    </message>
+    <message>
+        <source>Show Exam Tags and Collins Stars</source>
+        <translation>Show Exam Tags and Collins Stars</translation>
+    </message>
+    <message>
+        <source>Show Word Frequency</source>
+        <translation>Show Word Frequency</translation>
+    </message>
+    <message>
+        <source>Show Word Forms</source>
+        <translation>Show Word Forms</translation>
+    </message>
+    <message>
+        <source>Dictionary File</source>
+        <translation>Dictionary File</translation>
+    </message>
+    <message>
+        <source>Auto (bundled dictionary)</source>
+        <translation>Auto (bundled dictionary)</translation>
+    </message>
+    <message>
+        <source>Browse</source>
+        <translation>Browse</translation>
+    </message>
+    <message>
+        <source>Auto</source>
+        <translation>Auto</translation>
+    </message>
+    <message>
+        <source>Choose Dictionary File</source>
+        <translation>Choose Dictionary File</translation>
+    </message>
+    <message>
+        <source>No dictionary file found. Build ecdict_core.db with build_ecdict.py, or choose a file below.</source>
+        <translation>No dictionary file found. Build ecdict_core.db with build_ecdict.py, or choose a file below.</translation>
+    </message>
+    <message>
+        <source>Loaded: {count} entries, {size} MB</source>
+        <translation>Loaded: {count} entries, {size} MB</translation>
+    </message>
+    <message>
+        <source>Dictionary status unavailable: {error}</source>
+        <translation>Dictionary status unavailable: {error}</translation>
+    </message>
+</context>
+
+<!-- /* result-source-badge */ -->
+<context>
+    <name>TranslationDialog</name>
+    <message>
+        <source>Offline Dictionary · ECDICT</source>
+        <translation>Offline Dictionary · ECDICT</translation>
+    </message>
+    <message>
+        <source>Online Translation · {engine}</source>
+        <translation>Online Translation · {engine}</translation>
+    </message>
+    <message>
+        <source>Translation API</source>
+        <translation>Translation API</translation>
+    </message>
+    <message>
+        <source>Online translation engine</source>
+        <translation>Online translation engine</translation>
+    </message>
+</context>
+
+<!-- /* zh-en-lookup */ -->
+<context>
+    <name>Dictionary</name>
+    <message>
+        <source>Chinese → English</source>
+        <translation>Chinese → English</translation>
+    </message>
+    <message>
+        <source>Chinese → English · Offline</source>
+        <translation>Chinese → English · Offline</translation>
+    </message>
+</context>
+<context>
+    <name>TranslationDialog</name>
+    <message>
+        <source>Offline Dictionary · CC-CEDICT</source>
+        <translation>Offline Dictionary · CC-CEDICT</translation>
+    </message>
+</context>
+<context>
+    <name>SettingsDialog</name>
+    <message>
+        <source>Enable Chinese → English Lookup</source>
+        <translation>Enable Chinese → English Lookup</translation>
+    </message>
+    <message>
+        <source>Look Chinese words up locally and show their English equivalents, without calling the translation API.</source>
+        <translation>Look Chinese words up locally and show their English equivalents, without calling the translation API.</translation>
+    </message>
+    <message>
+        <source>EN → ZH: {count} entries, {size} MB</source>
+        <translation>EN → ZH: {count} entries, {size} MB</translation>
+    </message>
+    <message>
+        <source>ZH → EN: {count} entries, {size} MB</source>
+        <translation>ZH → EN: {count} entries, {size} MB</translation>
+    </message>
+    <message>
+        <source>No Chinese → English dictionary. Build cedict_zh_en.db with build_cedict_zh_en.py to look Chinese words up offline.</source>
+        <translation>No Chinese → English dictionary. Build cedict_zh_en.db with build_cedict_zh_en.py to look Chinese words up offline.</translation>
+    </message>
+</context>
 </TS>

@@ -29,3 +29,15 @@ tmp/
 *.tmp
 .npm-cache/
 .acl-recovery/
+
+# ─────────────────────────────────────────────
+# 离线词典（由 build_ecdict.py / build_cedict_zh_en.py 生成）
+# ─────────────────────────────────────────────
+# 生成物体积较大（英→中核心库约 16MB、全量库约 100MB、汉英库约 14MB），
+# 不进版本库；打包前用下面两条命令重新生成即可（打包脚本也会自动补生成）。
+main/dictionary/data/*.db
+main/dictionary/data/*.db.tmp
+ecdict.csv
+cedict_ts.u8
+.cedict_dl/
+

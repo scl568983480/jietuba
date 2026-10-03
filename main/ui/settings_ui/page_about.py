@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """关于页面"""
 import webbrowser
 
@@ -64,6 +64,22 @@ def create_about_page(dialog) -> QScrollArea:
     license_card.hBoxLayout.addWidget(details_btn, 0, Qt.AlignmentFlag.AlignRight)
     license_card.hBoxLayout.addSpacing(16)
     group.addSettingCard(license_card)
+
+    # 离线词典数据来源（ECDICT 为 MIT，需保留出处与许可声明）
+    dict_card = SettingCard(
+        FluentIcon.DOCUMENT,
+        dialog.tr("Offline Dictionary"),
+        "ECDICT (MIT)",
+        parent=group,
+    )
+    dict_btn = HyperlinkButton(
+        url="https://github.com/skywind3000/ECDICT",
+        text=dialog.tr("Open GitHub"),
+        parent=dict_card,
+    )
+    dict_card.hBoxLayout.addWidget(dict_btn, 0, Qt.AlignmentFlag.AlignRight)
+    dict_card.hBoxLayout.addSpacing(16)
+    group.addSettingCard(dict_card)
 
     # GitHub 链接卡片
     github_card = SettingCard(

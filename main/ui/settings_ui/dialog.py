@@ -1000,6 +1000,31 @@ class SettingsDialog(FrostedFramelessDialog):
         if hasattr(self, 'preserve_formatting_toggle'):
             self.config_manager.set_translation_preserve_formatting(self.preserve_formatting_toggle.isChecked())
 
+        # 离线词典（路径变化后要丢弃旧的词典句柄，下次查词自动重开）
+        if hasattr(self, 'dictionary_enable_toggle'):
+            self.config_manager.set_dictionary_enabled(self.dictionary_enable_toggle.isChecked())
+        if hasattr(self, 'dictionary_skip_online_toggle'):
+            self.config_manager.set_dictionary_skip_online(self.dictionary_skip_online_toggle.isChecked())
+        if hasattr(self, 'dictionary_show_phonetic_toggle'):
+            self.config_manager.set_dictionary_show_phonetic(self.dictionary_show_phonetic_toggle.isChecked())
+        if hasattr(self, 'dictionary_show_tags_toggle'):
+            self.config_manager.set_dictionary_show_tags(self.dictionary_show_tags_toggle.isChecked())
+        if hasattr(self, 'dictionary_show_rank_toggle'):
+            self.config_manager.set_dictionary_show_rank(self.dictionary_show_rank_toggle.isChecked())
+        if hasattr(self, 'dictionary_show_forms_toggle'):
+            self.config_manager.set_dictionary_show_forms(self.dictionary_show_forms_toggle.isChecked())
+        if hasattr(self, 'dictionary_zh_en_toggle'):
+            self.config_manager.set_dictionary_zh_en_enabled(self.dictionary_zh_en_toggle.isChecked())
+        if hasattr(self, 'dictionary_path_input'):
+            new_dict_path = self.dictionary_path_input.text().strip()
+            if new_dict_path != (self.config_manager.get_dictionary_path() or ""):
+                self.config_manager.set_dictionary_path(new_dict_path)
+                try:
+                    from dictionary import DictionaryService
+                    DictionaryService.reset_instance()
+                except Exception:
+                    pass
+
         # 6. 杂项
         if hasattr(self, 'autostart_toggle'):
             from ..welcome.page6_finish import FinishPage as _FP
@@ -1212,7 +1237,7 @@ class SettingsDialog(FrostedFramelessDialog):
                       'translation_hotkey_edit', 'translation_hotkey_edit_2',
                       'clipboard_hotkey_edit_2', 'save_path_lbl', 'path_lbl',
                       'openapi_url_input', 'openapi_api_key_input',
-                      'openapi_model_input'):
+                      'openapi_model_input', 'dictionary_path_input'):
             w = getattr(self, attr, None)
             if w is not None:
                 snap[attr] = w.text()
@@ -1225,7 +1250,13 @@ class SettingsDialog(FrostedFramelessDialog):
                       'pin_auto_toolbar_toggle', 'info_hide_on_drag_toggle',
                       'preload_screenshot_toggle',
                       'preload_toolbar_toggle', 'preload_ocr_toggle',
-                      'preload_settings_toggle', 'preload_clipboard_toggle'):
+                      'preload_settings_toggle', 'preload_clipboard_toggle',
+                      'dictionary_enable_toggle', 'dictionary_skip_online_toggle',
+                      'dictionary_show_phonetic_toggle',
+                      'dictionary_show_tags_toggle',
+                      'dictionary_show_rank_toggle',
+                      'dictionary_show_forms_toggle',
+                      'dictionary_zh_en_toggle'):
             w = getattr(self, attr, None)
             if w is not None:
                 snap[attr] = w.isChecked()
@@ -1418,6 +1449,24 @@ class SettingsDialog(FrostedFramelessDialog):
                 self.translation_target_combo.setCurrentIndex(index)
         if hasattr(self, 'preserve_formatting_toggle'):
             self.preserve_formatting_toggle.setChecked(self.config_manager.get_translation_preserve_formatting())
+
+        # 离线词典
+        if hasattr(self, 'dictionary_enable_toggle'):
+            self.dictionary_enable_toggle.setChecked(self.config_manager.get_dictionary_enabled())
+        if hasattr(self, 'dictionary_skip_online_toggle'):
+            self.dictionary_skip_online_toggle.setChecked(self.config_manager.get_dictionary_skip_online())
+        if hasattr(self, 'dictionary_show_phonetic_toggle'):
+            self.dictionary_show_phonetic_toggle.setChecked(self.config_manager.get_dictionary_show_phonetic())
+        if hasattr(self, 'dictionary_show_tags_toggle'):
+            self.dictionary_show_tags_toggle.setChecked(self.config_manager.get_dictionary_show_tags())
+        if hasattr(self, 'dictionary_show_rank_toggle'):
+            self.dictionary_show_rank_toggle.setChecked(self.config_manager.get_dictionary_show_rank())
+        if hasattr(self, 'dictionary_show_forms_toggle'):
+            self.dictionary_show_forms_toggle.setChecked(self.config_manager.get_dictionary_show_forms())
+        if hasattr(self, 'dictionary_zh_en_toggle'):
+            self.dictionary_zh_en_toggle.setChecked(self.config_manager.get_dictionary_zh_en_enabled())
+        if hasattr(self, 'dictionary_path_input'):
+            self.dictionary_path_input.setText(self.config_manager.get_dictionary_path())
 
         if hasattr(self, 'log_toggle'):
             self.log_toggle.setChecked(self.config_manager.get_log_enabled())

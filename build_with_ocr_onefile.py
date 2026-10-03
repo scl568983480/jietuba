@@ -29,10 +29,26 @@ EXE_NAME = "jietuba"
 # 翻译文件
 TRANSLATIONS_DIR = "main/translations"
 
+# 离线词典（ECDICT，英→中）—— 由 build_ecdict.py 生成，打包时必须存在
+DICTIONARY_DIR = "main/dictionary/data"
+DICTIONARY_DB = f"{DICTIONARY_DIR}/ecdict_core.db"
+
+# 汉英词库（CC-CEDICT，中→英）—— 由 build_cedict_zh_en.py 生成。
+# CC BY-SA 4.0，允许再分发，因此与 ECDICT 一样默认打进 exe。
+ZH_EN_DB = f"{DICTIONARY_DIR}/cedict_zh_en.db"
+
+# 随包分发两条词库各自的许可与出处声明
+DICTIONARY_LICENSES = "main/dictionary/DICTIONARY_LICENSES.txt"
+
 # 数据文件
 datas = [
     f"{SVG_DIR};svg",
     f"{TRANSLATIONS_DIR};translations",
+    # 内置词典 → 包内 dictionary/*.db。
+    # 运行时也支持放到 exe 同级的 dictionary/ 目录里覆盖它（见 dictionary/service.py）
+    f"{DICTIONARY_DB};dictionary",
+    f"{ZH_EN_DB};dictionary",
+    f"{DICTIONARY_LICENSES};dictionary",
 ]
 
 # 隐藏导入
@@ -152,6 +168,54 @@ if __name__ == '__main__':
     print(f"输出目录: {DIST_DIR}")
     print(f"构建目录: {BUILD_DIR}")
     print("=" * 60)
+
+    # ── 内置离线词典：缺失时自动从 ecdict.csv 生成 ──
+    if not (REPO_DIR / DICTIONARY_DB).exists():
+        print(f"未找到内置离线词典 {DICTIONARY_DB}，尝试从 ECDICT 生成 …")
+        try:
+            import build_ecdict
+
+            stats = build_ecdict.build_dictionary(
+                build_ecdict.resolve_source(),
+                str(REPO_DIR / DICTIONARY_DB),
+                mode="core",
+                progress=lambda n: print(
+                    f"\r  已写入 {n:,} 词条 …", end="", flush=True
+                ),
+            )
+            print(f"\n已生成内置词典：{stats.rows:,} 词条，"
+                  f"{stats.size_bytes / 1048576:.2f} MB")
+        except Exception as exc:
+            print(f"[ERROR] 生成离线词典失败：{exc}")
+            print("        请先运行 `python build_ecdict.py`（需要 ECDICT 的 ecdict.csv）")
+            raise SystemExit(1)
+    else:
+        size_mb = (REPO_DIR / DICTIONARY_DB).stat().st_size / 1048576
+        print(f"内置离线词典: {DICTIONARY_DB} ({size_mb:.2f} MB)")
+
+    # ── 汉英词库（CC-CEDICT）：与 ECDICT 一样默认内置 ──
+    if not (REPO_DIR / ZH_EN_DB).exists():
+        print(f"未找到汉英词库 {ZH_EN_DB}，尝试从 CC-CEDICT 生成 …")
+        try:
+            import build_cedict_zh_en
+
+            stats = build_cedict_zh_en.build_zh_en(
+                build_cedict_zh_en.resolve_source(),
+                str(REPO_DIR / ZH_EN_DB),
+                progress=lambda n: print(
+                    f"\r  已写入 {n:,} 条 …", end="", flush=True
+                ),
+            )
+            print(f"\n已生成汉英词库：{stats.heads:,} 词头，"
+                  f"{stats.size_bytes / 1048576:.2f} MB")
+        except Exception as exc:
+            print(f"[ERROR] 生成汉英词库失败：{exc}")
+            print("        请先运行 `python build_cedict_zh_en.py`"
+                  "（需要 CC-CEDICT 的 cedict_ts.u8）")
+            raise SystemExit(1)
+    else:
+        size_mb = (REPO_DIR / ZH_EN_DB).stat().st_size / 1048576
+        print(f"汉英词库(CC-CEDICT): {ZH_EN_DB} ({size_mb:.2f} MB)")
 
     datas_repr  = repr([(d.split(';')[0], d.split(';')[1]) for d in datas])
     hidden_repr = repr(hidden_imports)

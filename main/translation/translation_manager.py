@@ -61,6 +61,14 @@ class TranslationManager(QObject):
     """翻译窗口单例管理器"""
     
     _instance: Optional['TranslationManager'] = None
+
+    # 离线词典在划词通道里的三种结局
+    DICT_MISS = "miss"              # 未命中 / 词典不可用 → 走原联网逻辑
+    DICT_HIT_SKIP = "hit-skip"      # 命中且要求跳过联网 → 调用方直接结束
+    DICT_HIT_ONLINE = "hit-online"  # 命中但仍要联网 → 词条已显示，继续翻译
+
+    # ECDICT 是英→中词典，只在目标是中文时才用它
+    _CHINESE_TARGETS = ("ZH", "ZH-HANS", "ZH-HANT")
     
     # 信号
     translation_started = Signal(str)  # 开始翻译，参数为原文
@@ -131,6 +139,112 @@ class TranslationManager(QObject):
             return self._translation_service.provider_name()
         except ValueError:
             return self.tr("Engine not configured")
+
+    # ── 离线词典（划词通道） ────────────────────────────────────────
+    @staticmethod
+    def _dictionary_service():
+        """取离线词典单例；模块缺失/初始化失败时返回 None。"""
+        try:
+            from dictionary import get_dictionary_service
+
+            return get_dictionary_service()
+        except Exception as exc:
+            log_warning(f"离线词典不可用: {exc}", "Dictionary")
+            return None
+
+    def _apply_dictionary(self, text: str) -> str:
+        """划词前先过一次本地词典（英→中用 ECDICT，中→英用汉英库）。
+
+        命中就立刻在小窗里显示词条卡片，再按设置决定是否继续联网。
+        返回 ``DICT_*`` 三种结局之一，供调用方决定后续动作。
+
+        整个流程包在 try 里：离线词典是**增强**，任何意外都必须退化成
+        "没查过"，绝不能让正常翻译失败。
+        """
+        try:
+            service = self._dictionary_service()
+            if service is None or not self._is_popup_valid():
+                return self.DICT_MISS
+            from dictionary import (
+                contains_cjk,
+                is_lookup_candidate,
+                is_zh_lookup_candidate,
+            )
+
+            target = (self._target_lang or "").upper()
+
+            if contains_cjk(text):
+                # 中 → 英：交给汉英库；目标必须是英文方向
+                if target in self._CHINESE_TARGETS:
+                    return self.DICT_MISS
+                if not service.is_zh_en_enabled():
+                    return self.DICT_MISS
+                if not is_zh_lookup_candidate(text):
+                    return self.DICT_MISS
+                zh_result = service.lookup_zh_en(text)
+                if not zh_result.found:
+                    return self.DICT_MISS
+                entry = zh_result.entry
+            else:
+                # 英 → 中：交给 ECDICT
+                if target not in self._CHINESE_TARGETS:
+                    return self.DICT_MISS
+                if not service.is_enabled() or not is_lookup_candidate(text):
+                    return self.DICT_MISS
+                result = service.lookup(text)
+                if not result.found:
+                    return self.DICT_MISS
+                entry = result.entry
+
+            self._popup.show_dictionary(entry, service.display_options())
+            if service.skip_online_on_hit():
+                log_info(
+                    f"离线词典命中「{entry.headword}」，跳过联网翻译",
+                    "Dictionary",
+                )
+                return self.DICT_HIT_SKIP
+            return self.DICT_HIT_ONLINE
+        except Exception as exc:  # 查词失败绝不能影响正常翻译
+            log_warning(f"离线词典查询失败: {exc}", "Dictionary")
+            return self.DICT_MISS
+
+    def _dictionary_miss_info(self, text: str):
+        """未命中时给 UI 的 (查询词, 候选词)；没有有价值的提示时返回 None。
+
+        只在"单个词 + 词典确实给出了候选词"时才提示：多词短语 / 整句的
+        "候选词"没有意义，此时应当保持原有的「引擎未配置」提示不变。
+        """
+        try:
+            service = self._dictionary_service()
+            if service is None:
+                return None
+            from dictionary import (
+                clean_query,
+                contains_cjk,
+                is_lookup_candidate,
+                is_zh_lookup_candidate,
+            )
+
+            query = clean_query(text)
+            if not query:
+                return None
+            if contains_cjk(query):
+                if not is_zh_lookup_candidate(query):
+                    return None
+                if not service.is_zh_en_available():
+                    return None
+                suggestions = service.lookup_zh_en(query).suggestions
+            else:
+                if " " in query or not is_lookup_candidate(query):
+                    return None
+                if not service.is_available():
+                    return None
+                suggestions = service.lookup(query).suggestions
+            if not suggestions:
+                return None
+            return query, suggestions
+        except Exception:
+            return None
 
     # ── 表面访问 ────────────────────────────────────────────────────
     @property
@@ -472,8 +586,16 @@ class TranslationManager(QObject):
         # 下一次 translate_compact() 会被视为新的取词。
         self._popup_session_active = True
 
+        # 先进离线词典：命中且设置要求跳过联网，就地结束（不消耗 API）
+        if self._apply_dictionary(text) == self.DICT_HIT_SKIP:
+            return
+
         if not self._backend_ready():
-            popup.show_error(self._api_key_error())
+            miss = self._dictionary_miss_info(text)
+            if miss is not None:
+                popup.show_dictionary_miss(*miss)
+            else:
+                popup.show_error(self._api_key_error())
             return
 
         log_info(f"开始划词翻译: target={target_lang} 原文={text[:50]}...", "Translation")
@@ -552,17 +674,34 @@ class TranslationManager(QObject):
         self._popup_session_active = False
         self._stop_current_thread(RESULT_COMPACT)
         self._activate_surface(RESULT_COMPACT)
-        if not self._backend_ready():
-            if self._is_popup_valid():
-                self._popup.show_error(self._api_key_error())
-            return
-        # 方向：本次会话里用户手动选过 → 用用户选的；否则按输入的文字判断。
+
+        # 方向要先算出来：离线词典需要知道目标语言是不是中文
+        # （本次会话里用户手动选过 → 用用户选的；否则按输入的文字判断）
         if self._popup_user_selected_target_lang():
             target_lang = self._target_lang
         else:
             target_lang = self._direction_for(text)
         self._log_direction(target_lang, text)
         self._target_lang = target_lang
+
+        # 弹窗里改成/输入了一个英文单词时，同样先走离线词典
+        if self._apply_dictionary(text) == self.DICT_HIT_SKIP:
+            return
+
+        if self._is_popup_valid():
+            # 记下引擎名：联网出结果时小窗会在「来源」行显示它
+            self._popup.set_backend_status(
+                self._backend_name(), self._backend_ready()
+            )
+
+        if not self._backend_ready():
+            if self._is_popup_valid():
+                miss = self._dictionary_miss_info(text)
+                if miss is not None:
+                    self._popup.show_dictionary_miss(*miss)
+                else:
+                    self._popup.show_error(self._api_key_error())
+            return
         log_info(f"开始小窗输入翻译: target={target_lang} 原文={text[:50]}...", "Translation")
         self.translation_started.emit(text)
         self._start_translation(
